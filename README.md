@@ -10,9 +10,9 @@ Jessiverse is a central hub made up of two distinct concerns:
 
 ### This repo — The Hub
 
-1. **Hub Frontend** — a launcher dashboard that lists every registered extension. Clicking one redirects to that extension's own independently deployed frontend.
-2. **Hub Backend** — manages the extension registry, runs as an MCP server for AI agents (Claude, Cursor), and proxies tool calls out to registered extension backends.
-3. **Supabase** — one Supabase project shared across all services, each with its own schema. The `jessiverse` schema owns the extension registry and agent tokens.
+1. **Hub Frontend** — a launcher dashboard (Next.js) that lists every registered extension. Clicking one redirects to that extension's own independently deployed frontend.
+2. **Hub Backend** — a FastAPI server that manages the extension registry, runs as an MCP server for AI agents (Claude, Cursor), and proxies tool calls out to registered extension backends.
+3. **Supabase** — one Supabase project shared across all services, each with its own schema. The `jessiverse` schema owns the extension registry.
 
 ### Separate repos — Extensions
 
@@ -34,17 +34,17 @@ GET  {extension_url}/capabilities
 → [{ name, description, parameters: [{ name, type, required }] }]
 
 POST {extension_url}/execute
-→ Body:     { action, parameters, agent }
+→ Body:     { action, parameters }
 → Response: { success, data?, error? }
 ```
 
-To register an extension: `POST /api/extensions` with its `name`, `url`, and optional `description`. Once registered, the hub automatically starts including that extension's capabilities in the MCP server and routing tool calls to it.
+To register an extension: `POST /api/extensions` with `{ name, url, description }`. Once registered, the hub automatically includes that extension's capabilities in the MCP server and routes tool calls to it.
 
 ---
 
 ## Poke (AI Agent Integration)
 
-Poke is Claude or Cursor connecting to Jessiverse via MCP (Model Context Protocol). Jessiverse runs as an MCP server, so any MCP-compatible AI client can connect with a single static bearer token (`MCP_TOKEN` in `.env`) and get access to tools across all registered extensions.
+Poke is Claude or Cursor connecting to Jessiverse via MCP (Model Context Protocol). Jessiverse runs a FastMCP server so any MCP-compatible AI client can connect using a single static bearer token (`MCP_TOKEN` in `.env`) and get live access to tools across all registered extensions.
 
 **MCP server URL:** `http://localhost:8000/mcp/mcp` (or the deployed equivalent)
 
@@ -55,7 +55,9 @@ Poke is Claude or Cursor connecting to Jessiverse via MCP (Model Context Protoco
 | `list_extensions()` | List all registered extensions and the actions each one supports |
 | `use(extension, action, parameters)` | Execute any action on any registered extension |
 
-**MCP client config (Claude Desktop):**
+`list_extensions` calls `GET /capabilities` on every registered extension in real time and returns a combined summary. `use` calls `POST /execute` on the targeted extension and returns its response.
+
+**MCP client config (Claude Desktop / Cursor):**
 ```json
 {
   "mcpServers": {
@@ -73,14 +75,13 @@ Poke is Claude or Cursor connecting to Jessiverse via MCP (Model Context Protoco
 
 One Supabase project. Each service gets its own schema to keep things isolated.
 
-**`jessiverse` schema** (hub-owned tables):
+**`jessiverse` schema** (hub-owned, migration at `supabase/migrations/001_extensions.sql`):
 
 ```sql
--- Which extension backends are registered
-extensions(id, name, url, description, registered_at)
+extensions(id uuid PK, name text UNIQUE, url text, description text, registered_at timestamptz)
 ```
 
-Each extension owns its own schema in the same Supabase project. For example, an expense tracker extension would create and own an `expenses` schema — the hub never touches it.
+Each extension owns its own schema in the same Supabase project (e.g. `expenses`, `notes`). The hub never touches extension schemas.
 
 ---
 
@@ -89,22 +90,30 @@ Each extension owns its own schema in the same Supabase project. For example, an
 This repo only. Extensions each live in their own separate repo.
 
 ```
-jessiverse/                       ← this repo (the hub)
-├── frontend/                     # Hub frontend: launcher dashboard
-│   └── src/
-│       ├── app/                  # Pages (dashboard, agent setup)
-│       ├── extensions/           # Extension registry (name, icon, external URL)
-│       └── components/
-├── backend/                      # Hub backend: MCP server + extension registry API
+jessiverse/                         ← this repo (the hub)
+├── frontend/                       # Hub frontend: Next.js 15 launcher dashboard
+│   ├── app/                        # App Router: layout, page (dashboard)
+│   ├── components/
+│   │   └── ExtensionCard.tsx       # Card that links out to an extension
+│   ├── lib/
+│   │   └── extensions.ts           # Extension type + getExtensions() API call
+│   └── .env.local.example
+├── backend/                        # Hub backend: FastAPI + FastMCP
 │   └── app/
-│       ├── agents/               # Token issuance + agent identity
-│       ├── extensions/           # Extension registry: CRUD + HTTP proxy
-│       └── mcp/                  # MCP server: aggregates capabilities across all extensions
-│       └── core/
-│           ├── config.py         # Settings (loaded from .env)
-│           └── database.py       # Supabase client
+│       ├── core/
+│       │   ├── config.py           # Settings via pydantic-settings (loaded from .env)
+│       │   └── database.py         # Supabase client singleton
+│       ├── extensions/
+│       │   ├── router.py           # REST API: GET/POST /api/extensions, DELETE /api/extensions/{name}
+│       │   └── service.py          # CRUD against Supabase + HTTP proxy to extension backends
+│       ├── mcp/
+│       │   └── server.py           # FastMCP server: StaticTokenVerifier + list_extensions/use tools
+│       └── main.py                 # FastAPI app: mounts extensions router + MCP ASGI app
+│   ├── requirements.txt
+│   └── .env.example
 └── supabase/
-    └── migrations/               # Hub schema only (agents, tokens, extensions tables)
+    └── migrations/
+        └── 001_extensions.sql      # Creates the extensions table
 ```
 
 An extension repo (separate, independently deployed):
@@ -120,29 +129,68 @@ my-expense-tracker/               ← a separate repo (one extension)
 
 ## Running locally
 
-**Backend:**
+**1. Supabase migration**
+
+Run `supabase/migrations/001_extensions.sql` in the Supabase SQL editor to create the `extensions` table.
+
+**2. Backend:**
 ```bash
 cd backend
+cp .env.example .env      # fill in SUPABASE_URL, SUPABASE_SECRET_KEY, MCP_TOKEN
 pip install -r requirements.txt
 uvicorn app.main:app --reload
-# API docs: http://localhost:8000/api/docs
-# MCP endpoint: http://localhost:8000/mcp/mcp
+# REST API docs: http://localhost:8000/api/docs
+# MCP endpoint:  http://localhost:8000/mcp/mcp
 ```
 
-**Frontend:**
+**3. Frontend:**
 ```bash
 cd frontend
+cp .env.local.example .env.local   # set NEXT_PUBLIC_API_URL=http://localhost:8000
 npm install
 npm run dev
 # http://localhost:3000
 ```
 
-**Environment variables (backend `.env`):**
+**Environment variables — backend `backend/.env`:**
 ```
 SUPABASE_URL=
-SUPABASE_SECRET_KEY=
+SUPABASE_SECRET_KEY=        # use the new "secret" key format from Supabase dashboard
 MCP_TOKEN=change-me-to-something-secret
 SERVER_URL=http://localhost:8000
+CORS_ORIGINS=http://localhost:3000
 ```
 
-Copy `.env.example` in `backend/` as a starting point.
+**Environment variables — frontend `frontend/.env.local`:**
+```
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+---
+
+## Extension registry API
+
+```
+GET    /api/extensions           → list all registered extensions
+POST   /api/extensions           → register a new extension  { name, url, description }
+DELETE /api/extensions/{name}    → remove an extension
+```
+
+Example — register your first extension:
+```bash
+curl -X POST http://localhost:8000/api/extensions \
+  -H "Content-Type: application/json" \
+  -d '{"name": "expenses", "url": "https://my-expense-tracker.vercel.app", "description": "Track expenses"}'
+```
+
+---
+
+## Tech stack
+
+| Layer | Tech |
+|---|---|
+| Hub frontend | Next.js 15 (App Router), TypeScript, Tailwind CSS, React 19 |
+| Hub backend | FastAPI, Python, pydantic-settings |
+| MCP server | FastMCP (stateless HTTP, static bearer token auth) |
+| Extension proxy | httpx (async HTTP calls to extension backends) |
+| Database | Supabase (PostgreSQL), supabase-python client |
