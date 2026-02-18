@@ -1,1 +1,0 @@
-"""Template app module."""

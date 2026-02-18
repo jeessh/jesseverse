@@ -1,142 +1,148 @@
 # Jessiverse
 
-Your personal organization hub with modular apps and phone-based interaction via Poke.
+A personal hub that connects all of my independently built tools and services into one place.
 
-## Project Structure
+---
+
+## What it is
+
+Jessiverse is a central hub made up of two distinct concerns:
+
+### This repo — The Hub
+
+1. **Hub Frontend** — a launcher dashboard that lists every registered extension. Clicking one redirects to that extension's own independently deployed frontend.
+2. **Hub Backend** — manages the extension registry, runs as an MCP server for AI agents (Claude, Cursor), and proxies tool calls out to registered extension backends.
+3. **Supabase** — one Supabase project shared across all services, each with its own schema. The `jessiverse` schema owns the extension registry and agent tokens.
+
+### Separate repos — Extensions
+
+An **extension** is any service I build and register with the hub. Each extension is fully independent:
+- **Extension Frontend** — deployed at its own URL. The hub links out to it; it is never embedded.
+- **Extension Backend** — exposes two standard endpoints (see below). The hub calls these to discover and run its actions.
+- **Extension Schema** — its own schema inside the shared Supabase project (e.g. `expenses`, `notes`).
+
+The hub never imports or depends on extension code. It only holds a URL.
+
+---
+
+## Extension Protocol
+
+Every extension backend must implement exactly two endpoints. This is the full contract between the hub and any extension.
 
 ```
-jessiverse/
-├── frontend/          # Next.js app
-├── backend/           # FastAPI app
-└── supabase/          # Database migrations
+GET  {extension_url}/capabilities
+→ [{ name, description, parameters: [{ name, type, required }] }]
+
+POST {extension_url}/execute
+→ Body:     { action, parameters, agent }
+→ Response: { success, data?, error? }
 ```
 
-## Quick Start
+To register an extension: `POST /api/extensions` with its `name`, `url`, and optional `description`. Once registered, the hub automatically starts including that extension's capabilities in the MCP server and routing tool calls to it.
 
-### 1. Set up Supabase
+---
 
-1. Create a new project at [supabase.com](https://supabase.com)
-2. Get your project URL and keys from Settings > API
+## Poke (AI Agent Integration)
 
-### 2. Backend Setup
+Poke is Claude or Cursor connecting to Jessiverse via MCP (Model Context Protocol). Jessiverse runs as an MCP server, so any MCP-compatible AI client can connect with a single static bearer token (`MCP_TOKEN` in `.env`) and get access to tools across all registered extensions.
 
-```bash
-cd backend
+**MCP server URL:** `http://localhost:8000/mcp/mcp` (or the deployed equivalent)
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+**Tools the AI agent gets:**
 
-# Install dependencies
-pip install -r requirements.txt
+| Tool | Description |
+|---|---|
+| `list_extensions()` | List all registered extensions and the actions each one supports |
+| `use(extension, action, parameters)` | Execute any action on any registered extension |
 
-# Copy env file and fill in values
-cp .env.example .env
-
-# Run locally
-uvicorn app.main:app --reload
-```
-
-### 3. Frontend Setup
-
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Copy env file and fill in values
-cp .env.local.example .env.local
-
-# Run locally
-npm run dev
-```
-
-## Adding New Apps
-
-### Backend
-
-1. Copy the template:
-   ```bash
-   cp -r backend/app/apps/_template backend/app/apps/myapp
-   ```
-
-2. Edit the files:
-   - `router.py` - Change `PREFIX` and `TAGS`, add your endpoints
-   - `models.py` - Define your Pydantic schemas
-   - `service.py` - Implement your business logic, change `TABLE_NAME`
-
-3. The app auto-registers on startup!
-
-4. (Optional) Add a Poke command in `__init__.py`:
-   ```python
-   from app.apps import register_message_handler
-   
-   async def handle_mycommand(message: str, phone: str) -> str:
-       return "Response to SMS"
-   
-   register_message_handler("mycommand", handle_mycommand)
-   ```
-
-### Frontend
-
-1. Add to the app registry (`src/apps/registry.ts`):
-   ```typescript
-   {
-     id: "myapp",
-     name: "My App",
-     description: "What it does",
-     route: "myapp",
-     icon: SomeIcon,
-     showInSidebar: true,
-     showOnDashboard: true,
-     color: "#hexcolor",
-     enabled: true,
-   }
-   ```
-
-2. Create the page at `src/app/(dashboard)/myapp/page.tsx`
-
-3. (Optional) Add app-specific components in `src/components/apps/myapp/`
-
-## Deployment (Vercel)
-
-### Frontend
-
-1. Connect your repo to Vercel
-2. Set root directory to `frontend`
-3. Add environment variables
-
-### Backend
-
-1. Create a new Vercel project
-2. Set root directory to `backend`
-3. Add environment variables
-4. Update `CORS_ORIGINS` to include your frontend URL
-
-## Poke Integration
-
-The backend exposes a webhook at `POST /api/poke/webhook` that accepts:
-
+**MCP client config (Claude Desktop):**
 ```json
 {
-  "message": "help",
-  "phone_number": "+1234567890"
+  "mcpServers": {
+    "jessiverse": {
+      "url": "http://localhost:8000/mcp/mcp",
+      "headers": { "Authorization": "Bearer <your MCP_TOKEN>" }
+    }
+  }
 }
 ```
 
-Configure this URL in your Poke settings to receive SMS commands.
+---
 
-## Environment Variables
+## Supabase Schema
 
-### Backend (.env)
-- `SUPABASE_URL` - Your Supabase project URL
-- `SUPABASE_ANON_KEY` - Public anon key
-- `SUPABASE_SERVICE_ROLE_KEY` - Service role key (for admin operations)
-- `CORS_ORIGINS` - JSON array of allowed origins
-- `POKE_WEBHOOK_SECRET` - Secret for validating Poke webhooks
+One Supabase project. Each service gets its own schema to keep things isolated.
 
-### Frontend (.env.local)
-- `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Public anon key
-- `NEXT_PUBLIC_API_URL` - Backend API URL
+**`jessiverse` schema** (hub-owned tables):
+
+```sql
+-- Which extension backends are registered
+extensions(id, name, url, description, registered_at)
+```
+
+Each extension owns its own schema in the same Supabase project. For example, an expense tracker extension would create and own an `expenses` schema — the hub never touches it.
+
+---
+
+## Repo Structure
+
+This repo only. Extensions each live in their own separate repo.
+
+```
+jessiverse/                       ← this repo (the hub)
+├── frontend/                     # Hub frontend: launcher dashboard
+│   └── src/
+│       ├── app/                  # Pages (dashboard, agent setup)
+│       ├── extensions/           # Extension registry (name, icon, external URL)
+│       └── components/
+├── backend/                      # Hub backend: MCP server + extension registry API
+│   └── app/
+│       ├── agents/               # Token issuance + agent identity
+│       ├── extensions/           # Extension registry: CRUD + HTTP proxy
+│       └── mcp/                  # MCP server: aggregates capabilities across all extensions
+│       └── core/
+│           ├── config.py         # Settings (loaded from .env)
+│           └── database.py       # Supabase client
+└── supabase/
+    └── migrations/               # Hub schema only (agents, tokens, extensions tables)
+```
+
+An extension repo (separate, independently deployed):
+```
+my-expense-tracker/               ← a separate repo (one extension)
+├── frontend/                     # Extension frontend — hub links here, never embeds it
+└── backend/                      # Extension backend — must implement the two-endpoint protocol
+    └── supabase/
+        └── migrations/           # Extension's own schema (e.g. "expenses")
+```
+
+---
+
+## Running locally
+
+**Backend:**
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+# API docs: http://localhost:8000/api/docs
+# MCP endpoint: http://localhost:8000/mcp/mcp
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm install
+npm run dev
+# http://localhost:3000
+```
+
+**Environment variables (backend `.env`):**
+```
+SUPABASE_URL=
+SUPABASE_SECRET_KEY=
+MCP_TOKEN=change-me-to-something-secret
+SERVER_URL=http://localhost:8000
+```
+
+Copy `.env.example` in `backend/` as a starting point.

@@ -1,20 +1,12 @@
-"""Supabase database client."""
-from functools import lru_cache
 from supabase import create_client, Client
-
 from app.core.config import get_settings
 
-
-@lru_cache
-def get_supabase_client() -> Client:
-    """Get cached Supabase client instance."""
-    settings = get_settings()
-    return create_client(
-        settings.supabase_url,
-        settings.supabase_service_role_key or settings.supabase_anon_key
-    )
+_client: Client | None = None
 
 
-def get_db() -> Client:
-    """Dependency for getting Supabase client in routes."""
-    return get_supabase_client()
+def get_supabase() -> Client:
+    global _client
+    if _client is None:
+        s = get_settings()
+        _client = create_client(s.supabase_url, s.supabase_secret_key)
+    return _client

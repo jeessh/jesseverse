@@ -1,22 +1,20 @@
-"""Jessiverse FastAPI application."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.apps import register_all_apps
+from app.extensions.router import router as extensions_router
+from app.mcp.server import mcp_asgi_app
 
 settings = get_settings()
 
 app = FastAPI(
-    title=settings.app_name,
-    description="Central hub for personal organization and work",
-    version="0.1.0",
+    title="Jessiverse",
+    description="Hub backend: extension registry + MCP server",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -27,10 +25,12 @@ app.add_middleware(
 
 
 @app.get("/api/health")
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy", "app": settings.app_name}
+def health():
+    return {"status": "ok"}
 
 
-# Register all app routers
-register_all_apps(app)
+# Extension registry REST API
+app.include_router(extensions_router, prefix="/api/extensions", tags=["Extensions"])
+
+# MCP server — AI clients connect to /mcp/mcp
+app.mount("/mcp", mcp_asgi_app)
