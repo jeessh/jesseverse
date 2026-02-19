@@ -153,6 +153,19 @@ export interface ExtensionCapabilityParameter {
   required: boolean;
   /** Optional: human-readable description of what this parameter does */
   description?: string;
+  /**
+   * Optional: exhaustive list of the only accepted values.
+   * When present, the agent should treat this as an enum — only values in
+   * this array are valid inputs for the parameter.
+   * Example: ["applied", "interview", "offer", "rejected"]
+   */
+  enum?: string[];
+  /**
+   * Optional: a representative value that shows the expected format.
+   * Visible to the AI agent in list_extensions() output.
+   * Example: "2025-02-19" for an ISO date parameter.
+   */
+  example?: string;
 }
 
 export interface ExtensionCapability {
@@ -174,16 +187,18 @@ export interface ExtensionCapability {
  *     "name": "add_application",
  *     "description": "Add a new job application",
  *     "parameters": [
- *       { "name": "company", "type": "string", "required": true },
- *       { "name": "role",    "type": "string", "required": true },
- *       { "name": "status",  "type": "string", "required": false }
+ *       { "name": "company",  "type": "string", "required": true,  "description": "Company name, e.g. 'Acme Corp'.", "example": "Acme Corp" },
+ *       { "name": "role",     "type": "string", "required": true,  "description": "Job title, e.g. 'Software Engineer'.", "example": "Software Engineer" },
+ *       { "name": "status",   "type": "string", "required": false, "description": "Pipeline stage. Defaults to 'applied'.",
+ *         "enum": ["applied","phone_screen","interview","offer","rejected","withdrawn","ghosted"] }
  *     ]
  *   },
  *   {
  *     "name": "list_applications",
  *     "description": "List all job applications",
  *     "parameters": [
- *       { "name": "status", "type": "string", "required": false }
+ *       { "name": "status", "type": "string", "required": false, "description": "Filter to this stage.",
+ *         "enum": ["applied","phone_screen","interview","offer","rejected","withdrawn","ghosted"] }
  *     ]
  *   }
  * ]

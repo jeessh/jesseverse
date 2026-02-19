@@ -54,16 +54,45 @@ Returns the list of actions your extension supports.
     "name": "add_expense",
     "description": "Record a new expense",
     "parameters": [
-      { "name": "amount", "type": "number", "required": true },
-      { "name": "category", "type": "string", "required": false },
-      { "name": "note", "type": "string", "required": false }
+      {
+        "name": "amount",
+        "type": "number",
+        "required": true,
+        "description": "Amount spent in USD.",
+        "example": "14.50"
+      },
+      {
+        "name": "category",
+        "type": "string",
+        "required": false,
+        "description": "Spending category.",
+        "enum": ["food", "transport", "health", "entertainment", "other"]
+      },
+      {
+        "name": "note",
+        "type": "string",
+        "required": false,
+        "description": "Optional free-form note about the expense."
+      }
     ]
   },
   {
     "name": "list_expenses",
-    "description": "List recent expenses",
+    "description": "List recent expenses, optionally filtered by category",
     "parameters": [
-      { "name": "limit", "type": "number", "required": false }
+      {
+        "name": "category",
+        "type": "string",
+        "required": false,
+        "description": "Filter to this category only.",
+        "enum": ["food", "transport", "health", "entertainment", "other"]
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false,
+        "description": "Max number of records to return. Defaults to 50."
+      }
     ]
   }
 ]
@@ -72,8 +101,11 @@ Returns the list of actions your extension supports.
 **Rules:**
 - Must return a JSON array (even if empty — though at least one action is expected).
 - Each item must have `name` (string) and `description` (string).
-- `parameters` is optional but recommended. Each parameter needs `name`, `type`, and optionally `required`.
+- `parameters` is optional but recommended. Each parameter needs `name`, `type`, and `required`.
 - `type` is a hint for the AI agent — use plain strings like `"string"`, `"number"`, `"boolean"`, `"object"`.
+- `description` on each parameter tells the AI what the field means. **Always include this.**
+- `enum` lists the only accepted values for a constrained string parameter. The AI uses this to pick valid inputs.
+- `example` shows the expected format (e.g. `"2025-02-19"` for an ISO date). Shown to the AI when there is no `enum`.
 - No authentication required on this endpoint — it's public metadata.
 
 ---

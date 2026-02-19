@@ -40,10 +40,27 @@ _settings = get_settings()
 
 mcp = FastMCP("jesseverse")
 
+def _format_param(p: dict) -> str:
+    """Render one capability parameter as a readable line for the AI."""
+    req = "required" if p.get("required") else "optional"
+    line = f"      {p['name']} ({p.get('type', 'string')}, {req})"
+    desc = p.get("description")
+    if desc:
+        line += f" — {desc}"
+    enum_vals = p.get("enum")
+    if enum_vals:
+        line += f"  [values: {' | '.join(enum_vals)}]"
+    example = p.get("example")
+    if example and not enum_vals:  # enum already shows valid values; skip redundant example
+        line += f"  [e.g. {example!r}]"
+    return line
+
+
 @mcp.tool()
 async def list_extensions() -> str:
-    """List every registered extension and the actions each one supports.
-    Call this first to discover what you can do."""
+    """List every registered extension and the actions each one supports,
+    including all parameter types, descriptions, and accepted values.
+    Call this first to discover what you can do before calling use()."""
     extensions = ext_service.list_extensions()
     if not extensions:
         return "No extensions registered yet. Add one via POST /api/extensions."
@@ -54,49 +71,60 @@ async def list_extensions() -> str:
             caps = await ext_service.fetch_capabilities(ext["url"])
             cap_lines = []
             for cap in caps:
-                params = cap.get("parameters", [])
-                param_str = (
-                    ", ".join(
-                        f"{p['name']}({'required' if p.get('required') else 'optional'})"
-                        for p in params
-                    )
-                    or "no params"
-                )
+                params = cap.get("parameters") or []
+                # Action header
                 cap_lines.append(
-                    f"    • {cap['name']}: {cap.get('description', '')} [{param_str}]"
+                    f"  • {cap['name']}: {cap.get('description', '')}"
                 )
+                if params:
+                    for p in params:
+                        cap_lines.append(_format_param(p))
+                else:
+                    cap_lines.append("      (no parameters)")
             caps_text = (
-                "\n".join(cap_lines) if cap_lines else "    (no capabilities returned)"
+                "\n".join(cap_lines) if cap_lines else "  (no capabilities returned)"
             )
         except Exception as e:
-            caps_text = f"    (could not fetch capabilities: {e})"
-        results.append(f"[{ext['name']}] {ext.get('description', '')}\n{caps_text}")
+            caps_text = f"  (could not fetch capabilities: {e})"
+        header = f"[{ext['name']}] {ext.get('title', ext['name'])} — {ext.get('description', '')}"
+        results.append(f"{header}\n{caps_text}")
 
     return "\n\n".join(results)
 
 
 @mcp.tool()
 async def use(extension: str, action: str, parameters: dict) -> str:
-    """Execute any action on any registered extension.
+    """Execute an action on a registered extension.
+
+    Workflow:
+      1. Call list_extensions() to see all available extensions, actions, and
+         their required/optional parameters with types and accepted values.
+      2. Call use() with the correct extension name, action name, and parameters.
 
     Args:
-        extension: The extension name (as shown in list_extensions).
-        action: The action name to run.
-        parameters: Parameters for the action — use {} if none.
+        extension: Extension slug exactly as shown by list_extensions(), e.g. "application-tracker".
+        action: Action name exactly as listed under that extension, e.g. "add_application".
+        parameters: Dict of parameter values for the action. Use {} when an action needs none.
+                    Required parameters must be included; omit optional ones you don't need.
     """
     ext = ext_service.get_extension(extension)
     if not ext:
         known = [e["name"] for e in ext_service.list_extensions()]
         return (
             f"Extension '{extension}' not found. "
-            f"Registered extensions: {', '.join(known) or 'none'}"
+            f"Registered extensions: {', '.join(known) or 'none'}. "
+            f"Call list_extensions() to see available actions."
         )
     try:
         result = await ext_service.proxy_execute(ext["url"], action, parameters)
     except Exception as e:
         return f"Error calling {extension}/{action}: {e}"
     if not result.get("success"):
-        return f"Error: {result.get('error', 'Unknown error')}"
+        err = result.get("error", "Unknown error")
+        return (
+            f"Error from {extension}/{action}: {err}\n"
+            f"Hint: call list_extensions() to verify the correct action name and parameter names."
+        )
     data = result.get("data")
     return json.dumps(data, indent=2, default=str) if data is not None else "Done."
 
