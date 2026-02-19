@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.extensions.router import router as extensions_router
-from app.mcp.server import mcp_endpoint
+from app.mcp.server import mcp_asgi_app
 
 settings = get_settings()
 
@@ -34,4 +34,4 @@ app.include_router(extensions_router, prefix="/api/extensions", tags=["Extension
 
 # MCP server — registered as a plain Route so POST /mcp is matched exactly
 # with no 307 redirect (unlike app.mount which always redirects the bare path).
-app.add_route("/mcp", mcp_endpoint)
+app.add_route("/mcp", mcp_asgi_app)
