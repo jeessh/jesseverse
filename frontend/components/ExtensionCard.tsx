@@ -7,12 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { removeExtension, type Extension } from "@/lib/extensions";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface Props {
   extension: Extension;
+  isOnline?: boolean;
 }
 
-export function ExtensionCard({ extension }: Props) {
+export function ExtensionCard({ extension, isOnline }: Props) {
   const { toast } = useToast();
   const router = useRouter();
 
@@ -29,13 +31,22 @@ export function ExtensionCard({ extension }: Props) {
   }
 
   return (
-    <a href={extension.url} target="_blank" rel="noopener noreferrer" className="group block focus:outline-none">
+    <Link href={`/extensions/${encodeURIComponent(extension.name)}`} className="group block focus:outline-none">
       <Card className="h-full transition-colors hover:border-border/80 hover:bg-accent/30 focus-within:ring-1 focus-within:ring-ring">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
-            <CardTitle className="text-base group-hover:underline underline-offset-2">
-              {extension.name}
-            </CardTitle>
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Online/offline dot */}
+              {isOnline !== undefined && (
+                <span
+                  className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${isOnline ? "bg-green-500" : "bg-muted-foreground/40"}`}
+                  title={isOnline ? "Online" : "Unreachable"}
+                />
+              )}
+              <CardTitle className="text-base group-hover:underline underline-offset-2 truncate">
+                {extension.name}
+              </CardTitle>
+            </div>
             <div className="flex shrink-0 items-center gap-1">
               <Button
                 variant="ghost"
@@ -62,7 +73,6 @@ export function ExtensionCard({ extension }: Props) {
           </Badge>
         </CardContent>
       </Card>
-    </a>
+    </Link>
   );
 }
-

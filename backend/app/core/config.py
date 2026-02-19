@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # API key that protects the extension registry write endpoints (POST, DELETE, execute).
+    # Set this in .env — only you need it.
+    api_key: str = "change-me"
+
     # A single static bearer token that protects the MCP endpoint.
     # Set this in .env — only you need it.
     mcp_token: str = "change-me"

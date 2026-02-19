@@ -1,4 +1,4 @@
-import { getExtensions } from "@/lib/extensions";
+import { getExtensions, checkExtensionHealth } from "@/lib/extensions";
 import { ExtensionCard } from "@/components/ExtensionCard";
 import { AddExtension } from "@/components/AddExtension";
 import { Blocks } from "lucide-react";
@@ -7,6 +7,17 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const extensions = await getExtensions();
+
+  // Check all extension health statuses in parallel — won't block the page if some are slow/down.
+  const healthResults = await Promise.allSettled(
+    extensions.map((ext) => checkExtensionHealth(ext.url))
+  );
+  const healthMap = Object.fromEntries(
+    extensions.map((ext, i) => [
+      ext.id,
+      healthResults[i].status === "fulfilled" ? healthResults[i].value : false,
+    ])
+  );
 
   return (
     <main className="min-h-screen">
@@ -45,7 +56,7 @@ export default async function Home() {
           {extensions.length > 0 ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {extensions.map((ext) => (
-                <ExtensionCard key={ext.id} extension={ext} />
+                <ExtensionCard key={ext.id} extension={ext} isOnline={healthMap[ext.id]} />
               ))}
             </div>
           ) : (
