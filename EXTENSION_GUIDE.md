@@ -1,6 +1,6 @@
-# Building a Jessiverse Extension
+# Building a Jesseverse Extension
 
-This document is for developers (i.e. future me) building a new service that should be connectable to the Jessiverse hub.
+This document is for developers (i.e. future me) building a new service that should be connectable to the Jesseverse hub.
 
 ---
 
@@ -93,16 +93,16 @@ Executes one of your actions.
 - Always return `200`. Use `success: false` + `error` for expected failures. Reserve `4xx/5xx` for unexpected server errors only.
 - `data` can be anything serialisable — an object, an array, a string.
 - If `action` is not recognised, return `{ "success": false, "error": "Unknown action: <name>" }`.
-- No authentication required (Jessiverse is a private personal hub — the assumption is only you are calling it).
+- No authentication required (Jesseverse is a private personal hub — the assumption is only you are calling it).
 
 ---
 
 ## CORS
 
-Your backend must allow requests from the Jessiverse frontend origin. At minimum:
+Your backend must allow requests from the Jesseverse frontend origin. At minimum:
 
 ```
-Access-Control-Allow-Origin: https://your-jessiverse-frontend.vercel.app
+Access-Control-Allow-Origin: https://jesseverse.vercel.app
 Access-Control-Allow-Methods: GET, POST, OPTIONS
 Access-Control-Allow-Headers: Content-Type
 ```
@@ -116,7 +116,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://your-jessiverse.vercel.app", "http://localhost:3000"],
+    allow_origins=["https://jesseverse.vercel.app", "http://localhost:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -126,10 +126,10 @@ app.add_middleware(
 
 ## Registering with the hub
 
-Once your backend is deployed, register it from the Jessiverse frontend (paste the URL in the "Connect extension" field) or via curl:
+Once your backend is deployed, register it from the Jesseverse frontend (paste the URL in the "Connect extension" field) or via curl:
 
 ```bash
-curl -X POST https://your-jessiverse-backend.vercel.app/api/extensions \
+curl -X POST https://jesseverse-backend.vercel.app/api/extensions \
   -H "Content-Type: application/json" \
   -d '{
     "name": "expenses",
@@ -210,6 +210,6 @@ Keep your `CAPABILITIES` list as a Python constant (or a JSON file). This lets y
 
 - [ ] `GET /capabilities` returns a valid JSON array
 - [ ] `POST /execute` accepts `{ action, parameters }` and returns `{ success, data? }` or `{ success: false, error }`  
-- [ ] CORS is configured for the Jessiverse frontend origin
+- [ ] CORS is configured for the Jesseverse frontend origin
 - [ ] Backend is deployed and publicly reachable
-- [ ] Paste the URL in the Jessiverse frontend — it probes `/capabilities` before registering, so you'll see the actions immediately
+- [ ] Paste the URL in the Jesseverse frontend — it probes `/capabilities` before registering, so you'll see the actions immediately

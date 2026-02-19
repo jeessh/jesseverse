@@ -5,7 +5,7 @@ import { ToastProvider } from "@/components/ui/toast";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Jessiverse",
+  title: "Jesseverse",
   description: "Personal hub for all your tools and services",
 };
 

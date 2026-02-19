@@ -46,7 +46,7 @@ To register an extension: `POST /api/extensions` with `{ name, url, description 
 
 Poke is Claude or Cursor connecting to jesseverse via MCP (Model Context Protocol). jesseverse runs a FastMCP server so any MCP-compatible AI client can connect using a single static bearer token (`MCP_TOKEN` in `.env`) and get live access to tools across all registered extensions.
 
-**MCP server URL:** `http://localhost:8000/mcp/mcp` (or the deployed equivalent)
+**MCP server URL:** `https://jesseverse-backend.vercel.app/mcp` (or `http://localhost:8000/mcp` locally)
 
 **Tools the AI agent gets:**
 
@@ -62,7 +62,7 @@ Poke is Claude or Cursor connecting to jesseverse via MCP (Model Context Protoco
 {
   "mcpServers": {
     "jesseverse": {
-      "url": "http://localhost:8000/mcp/mcp",
+      "url": "https://jesseverse-backend.vercel.app/mcp",
       "headers": { "Authorization": "Bearer <your MCP_TOKEN>" }
     }
   }
@@ -157,8 +157,8 @@ npm run dev
 SUPABASE_URL=
 SUPABASE_SECRET_KEY=        # use the new "secret" key format from Supabase dashboard
 MCP_TOKEN=change-me-to-something-secret
-SERVER_URL=http://localhost:8000
-CORS_ORIGINS=http://localhost:3000
+SERVER_URL=https://jesseverse-backend.vercel.app
+CORS_ORIGINS=http://localhost:3000,https://jesseverse.vercel.app
 ```
 
 **Environment variables — frontend `frontend/.env.local`:**

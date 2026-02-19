@@ -27,7 +27,7 @@ def list_extensions():
 @router.get("/probe")
 async def probe_extension(url: str = Query(..., description="Base URL of the extension to probe")):
     """
-    Probe a URL to confirm it speaks the Jessiverse extension protocol.
+    Probe a URL to confirm it speaks the Jesseverse extension protocol.
     Returns its capabilities list so the frontend can preview actions before registering.
     This endpoint is intentionally unauthenticated — it's only reading public metadata.
     """

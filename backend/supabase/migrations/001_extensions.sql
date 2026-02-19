@@ -1,4 +1,4 @@
--- Jessiverse hub schema
+-- Jesseverse hub schema
 -- Run this in the Supabase SQL editor.
 -- This is the only schema the hub owns.
 -- Each extension you build will add its own schema separately.

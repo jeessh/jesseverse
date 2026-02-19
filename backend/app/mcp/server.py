@@ -1,5 +1,5 @@
 """
-Jessiverse MCP server.
+Jesseverse MCP server.
 
 Exposes two tools to any MCP-compatible AI client (Claude Desktop, Cursor, etc.):
 
@@ -17,8 +17,8 @@ Set that token in your MCP client config — no database lookup needed.
 MCP client config example (Claude Desktop / Cursor):
   {
     "mcpServers": {
-      "jessiverse": {
-        "url": "http://localhost:8000/mcp",
+      "jesseverse": {
+        "url": "https://jesseverse-backend.vercel.app/mcp",
         "headers": { "Authorization": "Bearer <your MCP_TOKEN>" }
       }
     }
@@ -26,12 +26,9 @@ MCP client config example (Claude Desktop / Cursor):
 """
 import json
 
-import anyio
 from starlette.types import Receive, Scope, Send
 from mcp.server import Server
-from mcp.server.models import InitializationOptions
-from mcp.server.streamable_http import StreamableHTTPServerTransport
-from mcp.server.lowlevel.server import NotificationOptions
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp import types
 
 from app.core.config import get_settings
@@ -88,36 +85,15 @@ async def _use(extension: str, action: str, parameters: dict) -> str:
     return json.dumps(data, indent=2, default=str) if data is not None else "Done."
 
 
-# ── MCP route handler ─────────────────────────────────────────────────────────
-# Registered in main.py via app.add_route("/mcp", mcp_route).
-# A plain Route (not a Mount) so POST /mcp is matched exactly — no 307 redirect.
-# A fresh Server + transport is created per request (stateless), mirroring the
-# pattern used in the confirmed-working EXAMPLE project.
+# ── MCP Server ───────────────────────────────────────────────────────────────
+# Build the low-level MCP Server with tool handlers, then hand it to a
+# StreamableHTTPSessionManager(stateless=True).  The session manager correctly
+# uses task_group.start() so the server task is ready *before* handle_request
+# is called — fixing the race condition from the old per-request
+# StreamableHTTPServerTransport + tg.start_soon approach.
 
-async def mcp_route(scope: Scope, receive: Receive, send: Send) -> None:
-    # ── Auth ──────────────────────────────────────────────────────────────────
-    headers = {k.lower(): v for k, v in scope.get("headers", [])}
-    auth = headers.get(b"authorization", b"").decode()
-    token = auth[7:] if auth.lower().startswith("bearer ") else ""
-    if token != _settings.mcp_token:
-        body = json.dumps({
-            "error": "invalid_token",
-            "error_description": "Authentication required",
-        }).encode()
-        await send({
-            "type": "http.response.start",
-            "status": 401,
-            "headers": [
-                (b"content-type", b"application/json"),
-                (b"content-length", str(len(body)).encode()),
-                (b"www-authenticate", b'Bearer error="invalid_token"'),
-            ],
-        })
-        await send({"type": "http.response.body", "body": body})
-        return
-
-    # ── Per-request MCP server ────────────────────────────────────────────────
-    server = Server("jessiverse")
+def _build_mcp_server() -> Server:
+    server = Server("jesseverse")
 
     @server.list_tools()
     async def handle_list_tools() -> list[types.Tool]:
@@ -159,39 +135,43 @@ async def mcp_route(scope: Scope, receive: Receive, send: Send) -> None:
             text = f"Unknown tool: {name}"
         return [types.TextContent(type="text", text=text)]
 
-    transport = StreamableHTTPServerTransport(
-        mcp_session_id=None,  # stateless — new transport per request
-        is_json_response_enabled=True,
-    )
-    init_options = InitializationOptions(
-        server_name="jessiverse",
-        server_version="1.0.0",
-        capabilities=server.get_capabilities(
-            notification_options=NotificationOptions(),
-            experimental_capabilities={},
-        ),
-    )
-
-    async with transport.connect() as (read_stream, write_stream):
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(
-                server.run, read_stream, write_stream, init_options,
-                False,  # raise_exceptions
-                True,   # stateless
-            )
-            await transport.handle_request(scope, receive, send)
-            tg.cancel_scope.cancel()  # request handled — shut down the server task
+    return server
 
 
-class _MCPApp:
-    """ASGI wrapper around mcp_route.
+# Module-level session manager — shared across all requests.
+# main.py must run `session_manager.run()` in its lifespan so the internal
+# task group is live before any requests arrive.
+session_manager = StreamableHTTPSessionManager(
+    app=_build_mcp_server(),
+    json_response=True,
+    stateless=True,
+)
 
-    A class instance (not a plain function) so Starlette's Route uses it
-    directly as an ASGI app instead of wrapping it with request_response().
-    """
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        await mcp_route(scope, receive, send)
+# ── MCP route handler ─────────────────────────────────────────────────────────
+# Registered in main.py via app.add_route("/mcp", mcp_endpoint).
+# Does Bearer-token auth, then delegates to the session manager.
 
+async def mcp_endpoint(scope: Scope, receive: Receive, send: Send) -> None:
+    # ── Auth ──────────────────────────────────────────────────────────────────
+    headers = {k.lower(): v for k, v in scope.get("headers", [])}
+    auth = headers.get(b"authorization", b"").decode()
+    token = auth[7:] if auth.lower().startswith("bearer ") else ""
+    if token != _settings.mcp_token:
+        body = json.dumps({
+            "error": "invalid_token",
+            "error_description": "Authentication required",
+        }).encode()
+        await send({
+            "type": "http.response.start",
+            "status": 401,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode()),
+                (b"www-authenticate", b'Bearer error="invalid_token"'),
+            ],
+        })
+        await send({"type": "http.response.body", "body": body})
+        return
 
-mcp_asgi_app = _MCPApp()
+    await session_manager.handle_request(scope, receive, send)
