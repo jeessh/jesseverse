@@ -250,4 +250,4 @@ Keep your `CAPABILITIES` list as a Python constant (or a JSON file). This lets y
 - [ ] `POST /execute` accepts `{ action, parameters }` and returns `{ success, data? }` or `{ success: false, error }`  
 - [ ] CORS is configured for the Jesseverse frontend origin
 - [ ] Backend is deployed and publicly reachable
-- [ ] Paste the URL in the Jesseverse frontend — it probes `/capabilities` before registering, so you'll see the actions immediately
+- [ ] Paste the URL in the Jesseverse frontend — it fetches `/info` and `/capabilities` to preview before you confirm

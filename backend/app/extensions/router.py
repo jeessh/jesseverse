@@ -17,28 +17,37 @@ class ExecuteBody(BaseModel):
     parameters: dict = {}
 
 
-# ── Read-only / probe (no auth required) ─────────────────────────────────────
+# ── Read-only (no auth required) ─────────────────────────────────────────────
 
 @router.get("")
 def list_extensions():
     return service.list_extensions()
 
 
-@router.get("/probe")
-async def probe_extension(url: str = Query(..., description="Base URL of the extension to probe")):
+@router.get("/register")
+async def register_preview(url: str = Query(..., description="Base URL of the extension")):
     """
-    Probe a URL to confirm it speaks the Jesseverse extension protocol.
-    Returns its capabilities list so the frontend can preview actions before registering.
-    This endpoint is intentionally unauthenticated — it's only reading public metadata.
+    Fetch /info and /capabilities from a URL so the frontend can preview the
+    extension before the user confirms registration. Unauthenticated — public metadata only.
     """
     clean_url = url.rstrip("/")
     try:
+        info = await service.fetch_info(clean_url)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Could not reach {clean_url}/info: {e}")
+    for field in ("title", "description", "version"):
+        if not info.get(field):
+            raise HTTPException(
+                status_code=422,
+                detail=f"/info response is missing required field: '{field}'",
+            )
+    try:
         capabilities = await service.fetch_capabilities(clean_url)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Could not reach extension: {e}")
+        raise HTTPException(status_code=502, detail=f"Could not reach {clean_url}/capabilities: {e}")
     if not isinstance(capabilities, list):
         raise HTTPException(status_code=502, detail="Extension did not return a capabilities array")
-    return {"capabilities": capabilities}
+    return {"info": info, "capabilities": capabilities}
 
 
 # ── Write operations (API key required) ──────────────────────────────────────

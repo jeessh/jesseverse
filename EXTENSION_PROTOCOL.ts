@@ -20,7 +20,7 @@
  *        DELETE /api/extensions/:name     → remove an extension
  *      Public endpoints (no auth):
  *        GET    /api/extensions           → list all extensions
- *        GET    /api/extensions/probe?url → fetch capabilities from a URL
+ *      GET    /api/extensions/register?url → fetch /info + /capabilities for preview
  *
  *   2. MCP Server  (POST /mcp — requires Bearer token)
  *      Exposes two tools to any connected AI agent:

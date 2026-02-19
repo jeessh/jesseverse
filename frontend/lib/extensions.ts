@@ -45,7 +45,7 @@ export async function getExtensions(): Promise<Extension[]> {
 export async function getExtensionCapabilities(url: string): Promise<Capability[] | null> {
   try {
     const res = await fetch(
-      `${SERVER_API}/api/extensions/probe?url=${encodeURIComponent(url.replace(/\/$/, ""))}`,
+      `${SERVER_API}/api/extensions/register?url=${encodeURIComponent(url.replace(/\/$/, ""))}`,
       { cache: "no-store" }
     );
     if (!res.ok) return null;
@@ -63,7 +63,7 @@ export async function getExtensionCapabilities(url: string): Promise<Capability[
 export async function checkExtensionHealth(url: string): Promise<boolean> {
   try {
     const res = await fetch(
-      `${SERVER_API}/api/extensions/probe?url=${encodeURIComponent(url.replace(/\/$/, ""))}`,
+      `${SERVER_API}/api/extensions/register?url=${encodeURIComponent(url.replace(/\/$/, ""))}`,
       { cache: "no-store" }
     );
     return res.ok;
@@ -78,27 +78,40 @@ export async function checkExtensionHealth(url: string): Promise<boolean> {
 // The API key never leaves the server.
 
 /**
- * Probe a URL by routing through the Next.js backend proxy.
- * Works for private/localhost extensions that the browser can't reach directly.
+ * Fetch /info + /capabilities from a URL via the backend register preview endpoint.
+ * Used in the AddExtension UI to confirm before the user finalises registration.
  */
-export async function probeExtension(
-  url: string
-): Promise<{ capabilities: Capability[]; name: string; description: string }> {
+export async function fetchRegistrationPreview(url: string): Promise<{
+  capabilities: Capability[];
+  title: string;
+  description: string;
+  version: string;
+  author: string;
+  icon_url: string;
+  homepage_url: string;
+}> {
   const res = await fetch(
-    `/api/extensions/probe?url=${encodeURIComponent(url.replace(/\/$/, ""))}`,
+    `/api/extensions/register?url=${encodeURIComponent(url.replace(/\/$/, ""))}`,
     { cache: "no-store" }
   );
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body?.detail ?? `Probe returned ${res.status}`);
+    throw new Error(body?.detail ?? `Register preview returned ${res.status}`);
   }
-  const { capabilities }: { capabilities: Capability[] } = await res.json();
+  const { info, capabilities }: { info: Record<string, string>; capabilities: Capability[] } =
+    await res.json();
   if (!Array.isArray(capabilities) || capabilities.length === 0) {
     throw new Error("Extension returned an empty capabilities list");
   }
-  const name = new URL(url.replace(/\/$/, "")).hostname.replace(/^www\./, "").split(".")[0];
-  const description = capabilities.map((c) => c.name).join(", ");
-  return { capabilities, name, description };
+  return {
+    capabilities,
+    title: info.title ?? "",
+    description: info.description ?? "",
+    version: info.version ?? "",
+    author: info.author ?? "",
+    icon_url: info.icon_url ?? "",
+    homepage_url: info.homepage_url ?? "",
+  };
 }
 
 /**

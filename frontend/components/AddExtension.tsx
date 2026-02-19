@@ -1,43 +1,47 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Plus, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import { probeExtension, registerExtension, type Capability } from "@/lib/extensions";
+import { fetchRegistrationPreview, registerExtension, type Capability } from "@/lib/extensions";
 import { useRouter } from "next/navigation";
 
-type Step = "idle" | "probing" | "confirm" | "registering" | "done" | "error";
+type Step = "idle" | "registering" | "confirm" | "saving" | "done" | "error";
 
-interface ProbeResult {
-  name: string;
+interface RegisterPreview {
+  title: string;
   description: string;
+  version: string;
+  author: string;
   capabilities: Capability[];
 }
 
 export function AddExtension() {
   const [url, setUrl] = React.useState("");
   const [step, setStep] = React.useState<Step>("idle");
-  const [probeResult, setProbeResult] = React.useState<ProbeResult | null>(null);
+  const [preview, setPreview] = React.useState<RegisterPreview | null>(null);
   const [error, setError] = React.useState("");
   const [name, setName] = React.useState("");
   const { toast } = useToast();
   const router = useRouter();
 
-  async function handleProbe(e: React.FormEvent) {
+  async function handleFetchPreview(e: React.FormEvent) {
     e.preventDefault();
     if (!url.trim()) return;
     setError("");
-    setStep("probing");
+    setStep("registering");
     try {
-      const result = await probeExtension(url.trim());
-      setProbeResult(result);
-      // Derive a default name from the URL hostname
-      const hostname = new URL(url.trim().replace(/\/$/, "")).hostname;
-      const defaultName = hostname.replace(/^www\./, "").split(".")[0];
+      const result = await fetchRegistrationPreview(url.trim());
+      setPreview(result);
+      // Use the title from /info as the default name slug
+      const defaultName = result.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
       setName(defaultName);
       setStep("confirm");
     } catch (err) {
@@ -48,21 +52,21 @@ export function AddExtension() {
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
-    if (!probeResult || !name.trim()) return;
-    setStep("registering");
+    if (!preview || !name.trim()) return;
+    setStep("saving");
     try {
       await registerExtension(
         name.trim(),
         url.trim().replace(/\/$/, ""),
-        probeResult.capabilities.map((c) => c.name).join(", ")
+        preview.description,
       );
       setStep("done");
-      toast(`Extension "${name.trim()}" registered successfully`, "success");
+      toast(`"${preview.title}" registered successfully`, "success");
       setTimeout(() => {
         setStep("idle");
         setUrl("");
         setName("");
-        setProbeResult(null);
+        setPreview(null);
         router.refresh();
       }, 1000);
     } catch (err) {
@@ -74,14 +78,14 @@ export function AddExtension() {
   function reset() {
     setStep("idle");
     setError("");
-    setProbeResult(null);
+    setPreview(null);
     setName("");
   }
 
   return (
     <div className="space-y-3">
       {/* URL input row */}
-      <form onSubmit={step === "confirm" || step === "done" ? (e) => e.preventDefault() : handleProbe} className="flex gap-2">
+      <form onSubmit={step === "confirm" || step === "done" ? (e) => e.preventDefault() : handleFetchPreview} className="flex gap-2">
         <Input
           type="url"
           placeholder="https://my-extension.vercel.app"
@@ -90,16 +94,16 @@ export function AddExtension() {
             setUrl(e.target.value);
             if (step !== "idle") reset();
           }}
-          disabled={step === "probing" || step === "registering"}
+          disabled={step === "registering" || step === "saving"}
           className="font-mono text-sm"
         />
         <Button
           type="submit"
-          disabled={!url.trim() || step === "probing" || step === "registering" || step === "confirm" || step === "done"}
+          disabled={!url.trim() || step === "registering" || step === "saving" || step === "confirm" || step === "done"}
           size="default"
           className="shrink-0"
         >
-          {step === "probing" ? (
+          {step === "registering" ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <>
@@ -124,24 +128,23 @@ export function AddExtension() {
       )}
 
       {/* Confirm state */}
-      {(step === "confirm" || step === "registering" || step === "done") && probeResult && (
+      {(step === "confirm" || step === "saving" || step === "done") && preview && (
         <Card className="animate-fade-in">
           <CardContent className="p-4">
-            <div className="mb-3 flex items-center gap-2">
-              {step === "done" ? (
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-              ) : (
-                <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+            {/* Info from /info */}
+            <div className="mb-3">
+              <p className="text-sm font-semibold">{preview.title}</p>
+              <p className="text-xs text-muted-foreground">{preview.description}</p>
+              {(preview.version || preview.author) && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {[preview.version && `v${preview.version}`, preview.author].filter(Boolean).join(" · ")}
+                </p>
               )}
-              <p className="text-sm font-medium">
-                {probeResult.capabilities.length}{" "}
-                {probeResult.capabilities.length === 1 ? "action" : "actions"} found
-              </p>
             </div>
 
             {/* Capability chips */}
             <div className="mb-4 flex flex-wrap gap-1.5">
-              {probeResult.capabilities.map((cap) => (
+              {preview.capabilities.map((cap) => (
                 <Badge key={cap.name} variant="secondary" className="text-xs">
                   {cap.name}
                 </Badge>
@@ -151,19 +154,19 @@ export function AddExtension() {
             {/* Name + register form */}
             <form onSubmit={handleRegister} className="flex gap-2">
               <Input
-                placeholder="Extension name"
+                placeholder="Extension slug"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                disabled={step === "registering" || step === "done"}
+                disabled={step === "saving" || step === "done"}
                 className="h-8 text-sm"
               />
               <Button
                 type="submit"
                 size="sm"
-                disabled={!name.trim() || step === "registering" || step === "done"}
+                disabled={!name.trim() || step === "saving" || step === "done"}
                 className="shrink-0"
               >
-                {step === "registering" ? (
+                {step === "saving" ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : step === "done" ? (
                   "Registered!"
