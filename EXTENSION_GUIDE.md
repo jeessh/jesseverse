@@ -6,7 +6,7 @@ This document is for developers (i.e. future me) building a new service that sho
 
 ## What an extension is
 
-An **extension** is any independently deployed backend that implements two HTTP endpoints. Once those endpoints exist and the extension is registered with the hub (`POST /api/extensions`), the hub's frontend will link to it and the MCP server will expose its actions to Claude/Cursor automatically.
+An **extension** is any independently deployed backend that implements three HTTP endpoints. Once those endpoints exist and the extension is registered with the hub (`POST /api/extensions`), the hub's frontend will link to it and the MCP server will expose its actions to Claude/Cursor automatically.
 
 The hub never imports your code. It only holds your URL and calls your two endpoints at runtime.
 
@@ -150,6 +150,19 @@ Executes one of your actions.
 - `data` can be anything serialisable — an object, an array, a string.
 - If `action` is not recognised, return `{ "success": false, "error": "Unknown action: <name>" }`.
 - No authentication required (Jesseverse is a private personal hub — the assumption is only you are calling it).
+
+---
+
+## Optional: reminders
+
+If your extension has tasks the user should be nudged to complete, you can opt in to the hub's `check_reminders` tool by exposing two additional actions in `/execute`:
+
+| Action | Description |
+|---|---|
+| `get_reminders` | Returns records where a reminder is overdue (`remind_at <= now`). No parameters. |
+| `snooze_reminder` | Pushes `remind_at` forward by 1 hour. Requires `id`. |
+
+The hub's `check_reminders()` MCP tool automatically scans every registered extension that advertises `get_reminders` in its `/capabilities` list and surfaces them to the AI agent. The agent can then prompt you to act and call `update_application` (or equivalent) to clear the reminder.
 
 ---
 

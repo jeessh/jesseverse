@@ -23,16 +23,22 @@
  *      GET    /api/extensions/register?url → fetch /info + /capabilities for preview
  *
  *   2. MCP Server  (POST /mcp — requires Bearer token)
- *      Exposes two tools to any connected AI agent:
+ *      Exposes three tools to any connected AI agent:
  *
  *        list_extensions()
  *          Reads every registered extension, calls GET {url}/capabilities on
  *          each one, and returns a formatted summary so the agent knows what
- *          actions are available.
+ *          actions are available — including parameter types, descriptions,
+ *          and accepted enum values.
  *
  *        use(extension, action, parameters)
  *          Calls POST {url}/execute on the named extension, forwarding the
  *          action and parameters. Returns the extension's response.
+ *
+ *        check_reminders()
+ *          Queries every registered extension that exposes a get_reminders
+ *          action and returns a list of overdue items (remind_at <= now).
+ *          Call this at the start of a session to surface pending tasks.
  *
  * ─── HOW REGISTRATION WORKS ────────────────────────────────────────────────
  *
@@ -190,7 +196,7 @@ export interface ExtensionCapability {
  *       { "name": "company",  "type": "string", "required": true,  "description": "Company name, e.g. 'Acme Corp'.", "example": "Acme Corp" },
  *       { "name": "role",     "type": "string", "required": true,  "description": "Job title, e.g. 'Software Engineer'.", "example": "Software Engineer" },
  *       { "name": "status",   "type": "string", "required": false, "description": "Pipeline stage. Defaults to 'applied'.",
- *         "enum": ["applied","phone_screen","interview","offer","rejected","withdrawn","ghosted"] }
+ *         "enum": ["to_apply","applied","phone_screen","interview","offer","rejected","withdrawn","ghosted"] }
  *     ]
  *   },
  *   {
@@ -198,7 +204,7 @@ export interface ExtensionCapability {
  *     "description": "List all job applications",
  *     "parameters": [
  *       { "name": "status", "type": "string", "required": false, "description": "Filter to this stage.",
- *         "enum": ["applied","phone_screen","interview","offer","rejected","withdrawn","ghosted"] }
+ *         "enum": ["to_apply","applied","phone_screen","interview","offer","rejected","withdrawn","ghosted"] }
  *     ]
  *   }
  * ]
