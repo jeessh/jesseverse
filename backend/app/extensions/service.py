@@ -2,6 +2,7 @@
 Extension service — CRUD against the extensions table + HTTP proxy to extension backends.
 
 Extension protocol (every extension backend must implement):
+    GET  {url}/info          →  { title, description, version, author?, icon_url?, homepage_url? }
     GET  {url}/capabilities  →  [{ name, description, parameters: [{name, type, required}] }]
     POST {url}/execute       →  body: { action, parameters }  →  { success, data?, error? }
 """
@@ -28,16 +29,35 @@ def get_extension(name: str) -> dict | None:
     return result.data if result.data else None
 
 
-def register_extension(name: str, url: str, description: str = "") -> dict:
+def register_extension(
+    name: str,
+    url: str,
+    description: str = "",
+    title: str = "",
+    version: str = "",
+    author: str = "",
+    icon_url: str = "",
+    homepage_url: str = "",
+) -> dict:
     url = url.rstrip("/")
-    result = (
-        get_supabase()
-        .table("extensions")
-        .upsert({"name": name, "url": url, "description": description}, on_conflict="name")
-        .select()
-        .execute()
-    )
-    return result.data[0]
+    db = get_supabase()
+    # supabase-py's SyncQueryRequestBuilder does not support chaining .select()
+    # after .upsert(), so we execute the write then fetch the row separately.
+    db.table("extensions").upsert(
+        {
+            "name": name,
+            "url": url,
+            "description": description,
+            "title": title,
+            "version": version,
+            "author": author,
+            "icon_url": icon_url,
+            "homepage_url": homepage_url,
+        },
+        on_conflict="name",
+    ).execute()
+    result = db.table("extensions").select("*").eq("name", name).single().execute()
+    return result.data
 
 
 def delete_extension(name: str) -> None:
@@ -45,6 +65,14 @@ def delete_extension(name: str) -> None:
 
 
 # ── Protocol proxy ────────────────────────────────────────────────────────────
+
+async def fetch_info(url: str) -> dict:
+    """GET {url}/info — returns core metadata about the extension."""
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(f"{url}/info")
+        resp.raise_for_status()
+        return resp.json()
+
 
 async def fetch_capabilities(url: str) -> list[dict]:
     """GET {url}/capabilities — returns the extension's action list."""

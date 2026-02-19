@@ -14,7 +14,31 @@ The hub never imports your code. It only holds your URL and calls your two endpo
 
 ## Required endpoints
 
-Your backend must implement exactly these two endpoints.
+Your backend must implement exactly these three endpoints.
+
+---
+
+### `GET /info`
+
+Returns core metadata about your extension. **Called automatically by the hub during registration** — your extension must implement this before you can register.
+
+**Response:** `200 OK`, `Content-Type: application/json`
+
+```json
+{
+  "title": "Expense Tracker",
+  "description": "Track personal expenses by category",
+  "version": "1.0.0",
+  "author": "Jesse",
+  "icon_url": "https://my-app.vercel.app/icon.png",
+  "homepage_url": "https://my-app.vercel.app"
+}
+```
+
+**Required fields:** `title`, `description`, `version`  
+**Optional fields:** `author`, `icon_url`, `homepage_url`
+
+Registration will fail with a `422` error if any required field is missing, or a `502` if `/info` is unreachable.
 
 ---
 
@@ -131,14 +155,16 @@ Once your backend is deployed, register it from the Jesseverse frontend (paste t
 ```bash
 curl -X POST https://jesseverse-backend.vercel.app/api/extensions \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: <API_KEY>" \
   -d '{
     "name": "expenses",
-    "url": "https://my-expense-tracker.vercel.app",
-    "description": "Track personal expenses"
+    "url": "https://my-expense-tracker.vercel.app"
   }'
 ```
 
-The `url` field must be the root of your backend (no trailing slash, no `/capabilities` suffix). The hub appends `/capabilities` and `/execute` itself.
+The hub will call `GET <url>/info` automatically to populate the display metadata. No need to pass `description` — it comes from `/info`.
+
+The `url` field must be the root of your backend (no trailing slash, no `/info` suffix). The hub appends `/info`, `/capabilities`, and `/execute` itself.
 
 To remove: `DELETE /api/extensions/{name}` or click the trash icon on the card in the frontend.
 
@@ -161,6 +187,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+INFO = {
+    "title": "Hello Extension",
+    "description": "A minimal Jesseverse extension",
+    "version": "1.0.0",
+    "author": "Jesse",
+}
+
 CAPABILITIES = [
     {
         "name": "hello",
@@ -174,6 +207,10 @@ CAPABILITIES = [
 class ExecuteRequest(BaseModel):
     action: str
     parameters: dict[str, Any] = {}
+
+@app.get("/info")
+def info():
+    return INFO
 
 @app.get("/capabilities")
 def capabilities():
@@ -208,6 +245,7 @@ Keep your `CAPABILITIES` list as a Python constant (or a JSON file). This lets y
 
 ## Checklist before registering
 
+- [ ] `GET /info` returns `{ title, description, version }` (plus optional `author`, `icon_url`, `homepage_url`)
 - [ ] `GET /capabilities` returns a valid JSON array
 - [ ] `POST /execute` accepts `{ action, parameters }` and returns `{ success, data? }` or `{ success: false, error }`  
 - [ ] CORS is configured for the Jesseverse frontend origin

@@ -44,8 +44,30 @@ async def probe_extension(url: str = Query(..., description="Base URL of the ext
 # ── Write operations (API key required) ──────────────────────────────────────
 
 @router.post("", status_code=201, dependencies=[Depends(require_api_key)])
-def register_extension(body: RegisterBody):
-    return service.register_extension(body.name, body.url, body.description)
+async def register_extension(body: RegisterBody):
+    try:
+        info = await service.fetch_info(body.url)
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not reach {body.url}/info — is the extension deployed and does it implement GET /info? ({e})",
+        )
+    for field in ("title", "description", "version"):
+        if not info.get(field):
+            raise HTTPException(
+                status_code=422,
+                detail=f"/info response is missing required field: '{field}'",
+            )
+    return service.register_extension(
+        name=body.name,
+        url=body.url,
+        description=info.get("description", body.description),
+        title=info.get("title", ""),
+        version=info.get("version", ""),
+        author=info.get("author", ""),
+        icon_url=info.get("icon_url", ""),
+        homepage_url=info.get("homepage_url", ""),
+    )
 
 
 @router.delete("/{name}", status_code=204, dependencies=[Depends(require_api_key)])

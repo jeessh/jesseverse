@@ -3,6 +3,11 @@ export interface Extension {
   name: string;
   url: string;
   description: string;
+  title: string;
+  version: string;
+  author: string;
+  icon_url: string;
+  homepage_url: string;
   registered_at: string;
 }
 
