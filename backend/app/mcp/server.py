@@ -18,55 +18,64 @@ MCP client config example (Claude Desktop):
   {
     "mcpServers": {
       "jessiverse": {
-        "url": "http://localhost:8000/mcp/mcp",
+        "url": "http://localhost:8000/mcp",
         "headers": { "Authorization": "Bearer <your MCP_TOKEN>" }
       }
     }
   }
 """
 import json
-import asyncio
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
-from mcp.server.fastmcp.server import AuthSettings
-from mcp.server.auth.provider import AccessToken, TokenVerifier
-from mcp.server.auth.middleware.auth_context import get_access_token
 
 from app.core.config import get_settings
 from app.extensions import service as ext_service
 
 
 # ── Single-token auth ─────────────────────────────────────────────────────────
-# It's just you, so one static token is all that's needed.
+# Read the Bearer token from the Authorization header directly and validate
+# it ourselves — no OAuth discovery machinery needed.
 
-class StaticTokenVerifier:
-    """Accepts only the single MCP_TOKEN value from .env."""
+class _BearerAuth:
+    """Thin ASGI wrapper: rejects requests whose Bearer token doesn't match MCP_TOKEN."""
 
-    def __init__(self, expected: str):
-        self._expected = expected
+    def __init__(self, app: Any, token: str) -> None:
+        self._app = app
+        self._token = token
 
-    async def verify_token(self, token: str) -> AccessToken | None:
-        if token != self._expected:
-            return None
-        return AccessToken(
-            token=token,
-            client_id="owner",
-            scopes=["jessiverse"],
-        )
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] == "http":
+            headers = {k.lower(): v for k, v in scope.get("headers", [])}
+            auth = headers.get(b"authorization", b"").decode()
+            bearer = auth[7:] if auth.lower().startswith("bearer ") else ""
+            if bearer != self._token:
+                body = json.dumps({
+                    "error": "invalid_token",
+                    "error_description": "Authentication required",
+                }).encode()
+                await send({
+                    "type": "http.response.start",
+                    "status": 401,
+                    "headers": [
+                        (b"content-type", b"application/json"),
+                        (b"content-length", str(len(body)).encode()),
+                        (b"www-authenticate", b'Bearer error="invalid_token"'),
+                    ],
+                })
+                await send({"type": "http.response.body", "body": body})
+                return
+        await self._app(scope, receive, send)
 
 
 _settings = get_settings()
-_server_url = _settings.server_url.rstrip("/")
 
+# streamable_http_path="/" means the MCP route lives at "/" inside the sub-app.
+# With app.mount("/mcp", ...) in main.py the public URL becomes just /mcp.
 mcp = FastMCP(
     name="jessiverse",
     stateless_http=True,
-    token_verifier=StaticTokenVerifier(_settings.mcp_token),
-    auth=AuthSettings(
-        issuer_url=_server_url,
-        resource_server_url=_server_url,
-        required_scopes=["jessiverse"],
-    ),
+    streamable_http_path="/",
 )
 
 
@@ -140,5 +149,6 @@ async def use(extension: str, action: str, parameters: dict) -> str:
 
 
 # ── ASGI app (mounted in main.py at /mcp) ────────────────────────────────────
+# Wrap with bearer-token auth before mounting.
 
-mcp_asgi_app = mcp.streamable_http_app()
+mcp_asgi_app = _BearerAuth(mcp.streamable_http_app(), _settings.mcp_token)
