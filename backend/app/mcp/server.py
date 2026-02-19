@@ -14,7 +14,7 @@ Exposes two tools to any MCP-compatible AI client (Claude Desktop, Cursor, etc.)
 Authentication: a single static bearer token stored in .env as MCP_TOKEN.
 Set that token in your MCP client config — no database lookup needed.
 
-MCP client config example (Claude Desktop):
+MCP client config example (Claude Desktop / Cursor):
   {
     "mcpServers": {
       "jessiverse": {
@@ -25,68 +25,24 @@ MCP client config example (Claude Desktop):
   }
 """
 import json
-from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+import anyio
+from starlette.types import Receive, Scope, Send
+from mcp.server import Server
+from mcp.server.models import InitializationOptions
+from mcp.server.streamable_http import StreamableHTTPServerTransport
+from mcp.server.lowlevel.server import NotificationOptions
+from mcp import types
 
 from app.core.config import get_settings
 from app.extensions import service as ext_service
 
-
-# ── Single-token auth ─────────────────────────────────────────────────────────
-# Read the Bearer token from the Authorization header directly and validate
-# it ourselves — no OAuth discovery machinery needed.
-
-class _BearerAuth:
-    """Thin ASGI wrapper: rejects requests whose Bearer token doesn't match MCP_TOKEN."""
-
-    def __init__(self, app: Any, token: str) -> None:
-        self._app = app
-        self._token = token
-
-    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
-        if scope["type"] == "http":
-            headers = {k.lower(): v for k, v in scope.get("headers", [])}
-            auth = headers.get(b"authorization", b"").decode()
-            bearer = auth[7:] if auth.lower().startswith("bearer ") else ""
-            if bearer != self._token:
-                body = json.dumps({
-                    "error": "invalid_token",
-                    "error_description": "Authentication required",
-                }).encode()
-                await send({
-                    "type": "http.response.start",
-                    "status": 401,
-                    "headers": [
-                        (b"content-type", b"application/json"),
-                        (b"content-length", str(len(body)).encode()),
-                        (b"www-authenticate", b'Bearer error="invalid_token"'),
-                    ],
-                })
-                await send({"type": "http.response.body", "body": body})
-                return
-        await self._app(scope, receive, send)
-
-
 _settings = get_settings()
 
-# streamable_http_path="/" means the MCP route lives at "/" inside the sub-app.
-# With app.mount("/mcp", ...) in main.py the public URL becomes just /mcp.
-mcp = FastMCP(
-    name="jessiverse",
-    stateless_http=True,
-    streamable_http_path="/",
-)
 
+# ── Tool logic (plain async functions — no framework decorators) ──────────────
 
-# ── Tools ─────────────────────────────────────────────────────────────────────
-
-@mcp.tool()
-async def list_extensions() -> str:
-    """
-    List every registered extension and the actions each one supports.
-    Call this first to discover what you can do.
-    """
+async def _list_extensions() -> str:
     extensions = ext_service.list_extensions()
     if not extensions:
         return "No extensions registered yet. Add one via POST /api/extensions."
@@ -109,25 +65,12 @@ async def list_extensions() -> str:
             caps_text = "\n".join(cap_lines) if cap_lines else "    (no capabilities returned)"
         except Exception as e:
             caps_text = f"    (could not fetch capabilities: {e})"
-
         results.append(f"[{ext['name']}] {ext.get('description', '')}\n{caps_text}")
 
     return "\n\n".join(results)
 
 
-@mcp.tool()
-async def use(extension: str, action: str, parameters: dict) -> str:
-    """
-    Execute any action on any registered extension.
-
-    Args:
-        extension:  The extension name (as shown in list_extensions).
-        action:     The action name to run.
-        parameters: A dict of parameters for the action (use {} for none).
-
-    Example:
-        use("expenses", "add_expense", {"amount": 12.50, "category": "food"})
-    """
+async def _use(extension: str, action: str, parameters: dict) -> str:
     ext = ext_service.get_extension(extension)
     if not ext:
         known = [e["name"] for e in ext_service.list_extensions()]
@@ -135,20 +78,120 @@ async def use(extension: str, action: str, parameters: dict) -> str:
             f"Extension '{extension}' not found. "
             f"Registered extensions: {', '.join(known) or 'none'}"
         )
-
     try:
         result = await ext_service.proxy_execute(ext["url"], action, parameters)
     except Exception as e:
         return f"Error calling {extension}/{action}: {e}"
-
     if not result.get("success"):
         return f"Error: {result.get('error', 'Unknown error')}"
-
     data = result.get("data")
     return json.dumps(data, indent=2, default=str) if data is not None else "Done."
 
 
-# ── ASGI app (mounted in main.py at /mcp) ────────────────────────────────────
-# Wrap with bearer-token auth before mounting.
+# ── MCP route handler ─────────────────────────────────────────────────────────
+# Registered in main.py via app.add_route("/mcp", mcp_route).
+# A plain Route (not a Mount) so POST /mcp is matched exactly — no 307 redirect.
+# A fresh Server + transport is created per request (stateless), mirroring the
+# pattern used in the confirmed-working EXAMPLE project.
 
-mcp_asgi_app = _BearerAuth(mcp.streamable_http_app(), _settings.mcp_token)
+async def mcp_route(scope: Scope, receive: Receive, send: Send) -> None:
+    # ── Auth ──────────────────────────────────────────────────────────────────
+    headers = {k.lower(): v for k, v in scope.get("headers", [])}
+    auth = headers.get(b"authorization", b"").decode()
+    token = auth[7:] if auth.lower().startswith("bearer ") else ""
+    if token != _settings.mcp_token:
+        body = json.dumps({
+            "error": "invalid_token",
+            "error_description": "Authentication required",
+        }).encode()
+        await send({
+            "type": "http.response.start",
+            "status": 401,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode()),
+                (b"www-authenticate", b'Bearer error="invalid_token"'),
+            ],
+        })
+        await send({"type": "http.response.body", "body": body})
+        return
+
+    # ── Per-request MCP server ────────────────────────────────────────────────
+    server = Server("jessiverse")
+
+    @server.list_tools()
+    async def handle_list_tools() -> list[types.Tool]:
+        return [
+            types.Tool(
+                name="list_extensions",
+                description=(
+                    "List every registered extension and the actions each one supports. "
+                    "Call this first to discover what you can do."
+                ),
+                inputSchema={"type": "object", "properties": {}},
+            ),
+            types.Tool(
+                name="use",
+                description="Execute any action on any registered extension.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "extension": {"type": "string", "description": "The extension name (as shown in list_extensions)."},
+                        "action": {"type": "string", "description": "The action name to run."},
+                        "parameters": {"type": "object", "description": "Parameters for the action — use {} if none."},
+                    },
+                    "required": ["extension", "action", "parameters"],
+                },
+            ),
+        ]
+
+    @server.call_tool()
+    async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent]:
+        if name == "list_extensions":
+            text = await _list_extensions()
+        elif name == "use":
+            text = await _use(
+                arguments.get("extension", ""),
+                arguments.get("action", ""),
+                arguments.get("parameters", {}),
+            )
+        else:
+            text = f"Unknown tool: {name}"
+        return [types.TextContent(type="text", text=text)]
+
+    transport = StreamableHTTPServerTransport(
+        mcp_session_id=None,  # stateless — new transport per request
+        is_json_response_enabled=True,
+    )
+    init_options = InitializationOptions(
+        server_name="jessiverse",
+        server_version="1.0.0",
+        capabilities=server.get_capabilities(
+            notification_options=NotificationOptions(),
+            experimental_capabilities={},
+        ),
+    )
+
+    async with transport.connect() as (read_stream, write_stream):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(
+                server.run, read_stream, write_stream, init_options,
+                False,  # raise_exceptions
+                True,   # stateless
+            )
+            await transport.handle_request(scope, receive, send)
+            tg.cancel_scope.cancel()  # request handled — shut down the server task
+
+
+class _MCPApp:
+    """ASGI wrapper around mcp_route.
+
+    A class instance (not a plain function) so Starlette's Route uses it
+    directly as an ASGI app instead of wrapping it with request_response().
+    """
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        await mcp_route(scope, receive, send)
+
+
+mcp_asgi_app = _MCPApp()
