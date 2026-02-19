@@ -6,3 +6,5 @@ frontend/.next/
 backend/supabase/.branches/
 backend/supabase/.temp/
 backend/.env
+
+EXAMPLE
