@@ -113,25 +113,30 @@ class _BearerAuthMiddleware:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http":
-            headers = {k.lower(): v for k, v in scope.get("headers", [])}
-            auth = headers.get(b"authorization", b"").decode()
-            incoming = auth[7:] if auth.lower().startswith("bearer ") else ""
-            if incoming != self._token:
-                body = json.dumps({
-                    "error": "invalid_token",
-                    "error_description": "Authentication required",
-                }).encode()
-                await send({
-                    "type": "http.response.start",
-                    "status": 401,
-                    "headers": [
-                        (b"content-type", b"application/json"),
-                        (b"content-length", str(len(body)).encode()),
-                        (b"www-authenticate", b'Bearer error="invalid_token"'),
-                    ],
-                })
-                await send({"type": "http.response.body", "body": body})
-                return
+            method = scope.get("method", "")
+            # Only enforce auth on POST (the actual MCP JSON-RPC calls).
+            # GET requests are unauthenticated probe/SSE checks used by MCP clients
+            # to validate the URL — blocking them with 401 causes "Invalid MCP server URL".
+            if method == "POST":
+                headers = {k.lower(): v for k, v in scope.get("headers", [])}
+                auth = headers.get(b"authorization", b"").decode()
+                incoming = auth[7:] if auth.lower().startswith("bearer ") else ""
+                if incoming != self._token:
+                    body = json.dumps({
+                        "error": "invalid_token",
+                        "error_description": "Authentication required",
+                    }).encode()
+                    await send({
+                        "type": "http.response.start",
+                        "status": 401,
+                        "headers": [
+                            (b"content-type", b"application/json"),
+                            (b"content-length", str(len(body)).encode()),
+                            (b"www-authenticate", b'Bearer error="invalid_token"'),
+                        ],
+                    })
+                    await send({"type": "http.response.body", "body": body})
+                    return
         await self._app(scope, receive, send)
 
 
@@ -142,6 +147,25 @@ class _BearerAuthMiddleware:
 # and Vercel-compatible (no persistent task group needed).
 
 async def _mcp_handler(scope: Scope, receive: Receive, send: Send) -> None:
+    # GET requests are unauthenticated URL-validity probes from MCP clients.
+    # Return a 200 JSON info response so the client confirms the URL is reachable.
+    if scope.get("method") == "GET":
+        body = json.dumps({
+            "name": "jesseverse",
+            "description": "Jesseverse MCP server — use POST with a Bearer token to call tools.",
+            "protocolVersion": "2024-11-05",
+        }).encode()
+        await send({
+            "type": "http.response.start",
+            "status": 200,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode()),
+            ],
+        })
+        await send({"type": "http.response.body", "body": body})
+        return
+
     server = mcp._mcp_server  # low-level Server with tools already registered
     transport = StreamableHTTPServerTransport(
         mcp_session_id=None,
