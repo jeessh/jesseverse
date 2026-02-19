@@ -1,4 +1,4 @@
-# Jessiverse
+# jesseverse
 
 A personal hub that connects all of my independently built tools and services into one place.
 
@@ -6,13 +6,13 @@ A personal hub that connects all of my independently built tools and services in
 
 ## What it is
 
-Jessiverse is a central hub made up of two distinct concerns:
+jesseverse is a central hub made up of two distinct concerns:
 
 ### This repo — The Hub
 
 1. **Hub Frontend** — a launcher dashboard (Next.js) that lists every registered extension. Clicking one redirects to that extension's own independently deployed frontend.
 2. **Hub Backend** — a FastAPI server that manages the extension registry, runs as an MCP server for AI agents (Claude, Cursor), and proxies tool calls out to registered extension backends.
-3. **Supabase** — one Supabase project shared across all services, each with its own schema. The `jessiverse` schema owns the extension registry.
+3. **Supabase** — one Supabase project shared across all services, each with its own schema. The `jesseverse` schema owns the extension registry.
 
 ### Separate repos — Extensions
 
@@ -44,7 +44,7 @@ To register an extension: `POST /api/extensions` with `{ name, url, description 
 
 ## Poke (AI Agent Integration)
 
-Poke is Claude or Cursor connecting to Jessiverse via MCP (Model Context Protocol). Jessiverse runs a FastMCP server so any MCP-compatible AI client can connect using a single static bearer token (`MCP_TOKEN` in `.env`) and get live access to tools across all registered extensions.
+Poke is Claude or Cursor connecting to jesseverse via MCP (Model Context Protocol). jesseverse runs a FastMCP server so any MCP-compatible AI client can connect using a single static bearer token (`MCP_TOKEN` in `.env`) and get live access to tools across all registered extensions.
 
 **MCP server URL:** `http://localhost:8000/mcp/mcp` (or the deployed equivalent)
 
@@ -61,7 +61,7 @@ Poke is Claude or Cursor connecting to Jessiverse via MCP (Model Context Protoco
 ```json
 {
   "mcpServers": {
-    "jessiverse": {
+    "jesseverse": {
       "url": "http://localhost:8000/mcp/mcp",
       "headers": { "Authorization": "Bearer <your MCP_TOKEN>" }
     }
@@ -75,7 +75,7 @@ Poke is Claude or Cursor connecting to Jessiverse via MCP (Model Context Protoco
 
 One Supabase project. Each service gets its own schema to keep things isolated.
 
-**`jessiverse` schema** (hub-owned, migration at `supabase/migrations/001_extensions.sql`):
+**`jesseverse` schema** (hub-owned, migration at `supabase/migrations/001_extensions.sql`):
 
 ```sql
 extensions(id uuid PK, name text UNIQUE, url text, description text, registered_at timestamptz)
@@ -90,7 +90,7 @@ Each extension owns its own schema in the same Supabase project (e.g. `expenses`
 This repo only. Extensions each live in their own separate repo.
 
 ```
-jessiverse/                         ← this repo (the hub)
+jesseverse/                         ← this repo (the hub)
 ├── frontend/                       # Hub frontend: Next.js 15 launcher dashboard
 │   ├── app/                        # App Router: layout, page (dashboard)
 │   ├── components/
