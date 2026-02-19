@@ -29,8 +29,8 @@ frontend/.turbo/
 .npm
 
 # ── Supabase ─────────────────────────────────────────────────────────────────
-supabase/.branches/
-supabase/.temp/
+backend/supabase/.branches/
+backend/supabase/.temp/
 
 # ── OS ───────────────────────────────────────────────────────────────────────
 .DS_Store
