@@ -1,22 +1,11 @@
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.extensions.router import router as extensions_router
-from app.mcp.server import session_manager, mcp_endpoint
+from app.mcp.server import mcp_endpoint
 
 settings = get_settings()
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Start the MCP session manager's internal task group before serving
-    # requests — required by StreamableHTTPSessionManager.
-    async with session_manager.run():
-        yield
-
 
 app = FastAPI(
     title="Jesseverse",
@@ -24,12 +13,11 @@ app = FastAPI(
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
-    lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

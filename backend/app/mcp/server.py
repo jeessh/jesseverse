@@ -26,9 +26,10 @@ MCP client config example (Claude Desktop / Cursor):
 """
 import json
 
+import anyio
 from starlette.types import Receive, Scope, Send
 from mcp.server import Server
-from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+from mcp.server.streamable_http import StreamableHTTPServerTransport
 from mcp import types
 
 from app.core.config import get_settings
@@ -86,11 +87,11 @@ async def _use(extension: str, action: str, parameters: dict) -> str:
 
 
 # ── MCP Server ───────────────────────────────────────────────────────────────
-# Build the low-level MCP Server with tool handlers, then hand it to a
-# StreamableHTTPSessionManager(stateless=True).  The session manager correctly
-# uses task_group.start() so the server task is ready *before* handle_request
-# is called — fixing the race condition from the old per-request
-# StreamableHTTPServerTransport + tg.start_soon approach.
+# Per-request stateless handler. Each request gets a fresh Server + transport.
+# Uses tg.start() (not tg.start_soon()) so the server task signals readiness
+# via task_status.started() before handle_request pushes any messages in —
+# this is the fix for the race condition and is Vercel serverless-compatible
+# (no persistent background task group required).
 
 def _build_mcp_server() -> Server:
     server = Server("jesseverse")
@@ -138,19 +139,9 @@ def _build_mcp_server() -> Server:
     return server
 
 
-# Module-level session manager — shared across all requests.
-# main.py must run `session_manager.run()` in its lifespan so the internal
-# task group is live before any requests arrive.
-session_manager = StreamableHTTPSessionManager(
-    app=_build_mcp_server(),
-    json_response=True,
-    stateless=True,
-)
-
-
 # ── MCP route handler ─────────────────────────────────────────────────────────
 # Registered in main.py via app.add_route("/mcp", mcp_endpoint).
-# Does Bearer-token auth, then delegates to the session manager.
+# Does Bearer-token auth, then handles MCP per-request.
 
 async def mcp_endpoint(scope: Scope, receive: Receive, send: Send) -> None:
     # ── Auth ──────────────────────────────────────────────────────────────────
@@ -174,4 +165,24 @@ async def mcp_endpoint(scope: Scope, receive: Receive, send: Send) -> None:
         await send({"type": "http.response.body", "body": body})
         return
 
-    await session_manager.handle_request(scope, receive, send)
+    # ── Per-request MCP server ────────────────────────────────────────────────
+    server = _build_mcp_server()
+    transport = StreamableHTTPServerTransport(
+        mcp_session_id=None,
+        is_json_response_enabled=True,
+    )
+
+    async with anyio.create_task_group() as tg:
+        async def run_server(*, task_status=anyio.TASK_STATUS_IGNORED) -> None:
+            async with transport.connect() as (read_stream, write_stream):
+                task_status.started()  # signal ready — handle_request may now send messages
+                await server.run(
+                    read_stream,
+                    write_stream,
+                    server.create_initialization_options(),
+                    stateless=True,
+                )
+
+        await tg.start(run_server)  # waits until task_status.started() is called
+        await transport.handle_request(scope, receive, send)
+        tg.cancel_scope.cancel()  # request done — shut down the server task

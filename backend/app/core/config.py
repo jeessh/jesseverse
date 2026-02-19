@@ -1,3 +1,4 @@
+import json
 from functools import lru_cache
 from pydantic_settings import BaseSettings
 
@@ -9,8 +10,16 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_secret_key: str = ""
 
-    # CORS
-    cors_origins: list[str] = ["http://localhost:3000", "https://jesseverse.vercel.app"]
+    # CORS — stored as a plain string so pydantic-settings doesn't try to
+    # JSON-decode it.  Accepts either a comma-separated value or a JSON array.
+    cors_origins: str = "http://localhost:3000,https://jesseverse.vercel.app"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        v = self.cors_origins.strip()
+        if v.startswith("["):
+            return json.loads(v)
+        return [o.strip() for o in v.split(",") if o.strip()]
 
     # API key that protects the extension registry write endpoints (POST, DELETE, execute).
     # Set this in .env — only you need it.
