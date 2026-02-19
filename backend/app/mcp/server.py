@@ -40,7 +40,6 @@ _settings = get_settings()
 
 mcp = FastMCP("jesseverse")
 
-
 @mcp.tool()
 async def list_extensions() -> str:
     """List every registered extension and the actions each one supports.

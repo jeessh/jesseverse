@@ -34,6 +34,7 @@ def register_extension(name: str, url: str, description: str = "") -> dict:
         get_supabase()
         .table("extensions")
         .upsert({"name": name, "url": url, "description": description}, on_conflict="name")
+        .select()
         .execute()
     )
     return result.data[0]
