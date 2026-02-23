@@ -36,9 +36,20 @@
  *          action and parameters. Returns the extension's response.
  *
  *        check_reminders()
- *          Queries every registered extension that exposes a get_reminders
- *          action and returns a list of overdue items (remind_at <= now).
- *          Call this at the start of a session to surface pending tasks.
+ *          Iterates every registered extension. For each one that lists a
+ *          get_reminders action in /capabilities, calls POST {url}/execute
+ *          with { action: "get_reminders", parameters: {} } and collects the
+ *          returned data arrays. Formats and returns all overdue items to the
+ *          agent. Call this at the start of a session to surface pending tasks.
+ *
+ *          The output formatter reads these exact fields from each record:
+ *            id       (string, required) — passed to snooze_reminder / update calls
+ *            role     (string) — displayed as the item label
+ *            company  (string) — displayed alongside role
+ *            url      (string, optional) — displayed if present
+ *          Missing fields render as '?'. If your extension's get_reminders
+ *          records use different field names, update the formatting block in
+ *          check_reminders() in backend/app/mcp/server.py to match.
  *
  * ─── HOW REGISTRATION WORKS ────────────────────────────────────────────────
  *
@@ -92,15 +103,15 @@
  *
  * ─── FULL REQUEST FLOW ─────────────────────────────────────────────────────
  *
- * Agent asks: "Add a job application for Acme Corp, software engineer role"
+ * Agent asks: "Add an expense of $14.50 for lunch"
  *
  *   1. Agent calls MCP tool  list_extensions()
  *        Hub fetches GET https://my-app.vercel.app/capabilities
- *        Hub returns: "[application-tracker] ... • add_application: ..."
+ *        Hub returns: "[expense-tracker] ... • add_expense: ..."
  *
- *   2. Agent calls MCP tool  use("application-tracker", "add_application", { company: "Acme Corp", role: "Software Engineer" })
+ *   2. Agent calls MCP tool  use("expense-tracker", "add_expense", { amount: 14.50, category: "food", note: "lunch" })
  *        Hub fetches POST https://my-app.vercel.app/execute
- *          body: { "action": "add_application", "parameters": { "company": "Acme Corp", "role": "Software Engineer" } }
+ *          body: { "action": "add_expense", "parameters": { "amount": 14.50, "category": "food", "note": "lunch" } }
  *        Extension responds: { "success": true, "data": { "id": "...", ... } }
  *        Hub returns the data to the agent.
  */
@@ -113,7 +124,7 @@
 // ---------------------------------------------------------------------------
 
 export interface ExtensionInfo {
-  /** Human-readable display name, e.g. "Application Tracker" */
+  /** Human-readable display name, e.g. "Expense Tracker" */
   title: string;
   /** One-line description of what this extension does */
   description: string;
@@ -133,8 +144,8 @@ export interface ExtensionInfo {
  *
  * Example response:
  * {
- *   "title": "Application Tracker",
- *   "description": "Track job applications with status, notes, and timeline.",
+ *   "title": "Expense Tracker",
+ *   "description": "Track personal expenses by category.",
  *   "version": "1.0.0",
  *   "author": "Jesse"
  * }
@@ -190,21 +201,22 @@ export interface ExtensionCapability {
  * Example response:
  * [
  *   {
- *     "name": "add_application",
- *     "description": "Add a new job application",
+ *     "name": "add_expense",
+ *     "description": "Record a new expense",
  *     "parameters": [
- *       { "name": "company",  "type": "string", "required": true,  "description": "Company name, e.g. 'Acme Corp'.", "example": "Acme Corp" },
- *       { "name": "role",     "type": "string", "required": true,  "description": "Job title, e.g. 'Software Engineer'.", "example": "Software Engineer" },
- *       { "name": "status",   "type": "string", "required": false, "description": "Pipeline stage. Defaults to 'applied'.",
- *         "enum": ["to_apply","applied","phone_screen","interview","offer","rejected","withdrawn","ghosted"] }
+ *       { "name": "amount",   "type": "number", "required": true,  "description": "Amount spent in USD.", "example": "14.50" },
+ *       { "name": "category", "type": "string", "required": false, "description": "Spending category.",
+ *         "enum": ["food","transport","health","entertainment","other"] },
+ *       { "name": "note",     "type": "string", "required": false, "description": "Optional free-form note." }
  *     ]
  *   },
  *   {
- *     "name": "list_applications",
- *     "description": "List all job applications",
+ *     "name": "list_expenses",
+ *     "description": "List recent expenses, optionally filtered by category",
  *     "parameters": [
- *       { "name": "status", "type": "string", "required": false, "description": "Filter to this stage.",
- *         "enum": ["to_apply","applied","phone_screen","interview","offer","rejected","withdrawn","ghosted"] }
+ *       { "name": "category", "type": "string", "required": false, "description": "Filter to this category.",
+ *         "enum": ["food","transport","health","entertainment","other"] },
+ *       { "name": "limit",    "type": "number", "required": false, "description": "Max records to return. Defaults to 50." }
  *     ]
  *   }
  * ]

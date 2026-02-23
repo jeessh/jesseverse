@@ -131,14 +131,16 @@ async def use(extension: str, action: str, parameters: dict) -> str:
 
 @mcp.tool()
 async def check_reminders() -> str:
-    """Check for job applications you saved but haven't applied to yet.
+    """Check for overdue reminders across all registered extensions.
 
-    Returns all to_apply applications whose reminder has come due — meaning
-    you should apply to them now. Call this proactively at the start of a
-    session, or whenever the user mentions job searching.
+    For every extension that advertises a get_reminders action, calls that
+    action and collects all overdue items (remind_at <= now). Returns a
+    formatted list so you can act on each one.
+
+    Call this proactively at the start of a session.
 
     To act on a reminder:
-      - Mark applied:  use(extension, "update_application", {"id": "...", "status": "applied"})
+      - Clear it: use(extension, "<update_action>", {"id": "...", ...})
       - Snooze 1 hour: use(extension, "snooze_reminder", {"id": "..."})
     """
     extensions = ext_service.list_extensions()
@@ -163,7 +165,7 @@ async def check_reminders() -> str:
     if not all_reminders:
         return "No pending reminders. You're all caught up!"
 
-    lines = [f"You have {len(all_reminders)} pending application(s) to submit:\n"]
+    lines = [f"You have {len(all_reminders)} pending reminder(s):\n"]
     for r in all_reminders:
         lines.append(
             f"  • [{r['_extension']}] {r.get('role', '?')} at {r.get('company', '?')}"
@@ -172,9 +174,8 @@ async def check_reminders() -> str:
             lines.append(f"      URL: {r['url']}")
         lines.append(f"      ID: {r['id']}")
     lines.append(
-        "\nFor each one, go apply and then call:\n"
-        '  use(<extension>, "update_application", {"id": "<id>", "status": "applied"})\n'
-        "Or snooze for 1 hour with:\n"
+        "\nFor each item, act on it and then call your extension's update action to clear it,\n"
+        "or snooze for 1 hour with:\n"
         '  use(<extension>, "snooze_reminder", {"id": "<id>"})'
     )
     return "\n".join(lines)

@@ -155,28 +155,52 @@ Executes one of your actions.
 
 ## Optional: reminders
 
-If your extension has tasks the user should be nudged to complete, you can opt in to the hub's `check_reminders` tool by exposing two additional actions in `/execute`:
+If your extension has items the user should be nudged to act on, you can opt in to the hub's `check_reminders` MCP tool by exposing two additional actions in `/execute`:
 
 | Action | Description |
 |---|---|
-| `get_reminders` | Returns records where a reminder is overdue (`remind_at <= now`). No parameters. |
-| `snooze_reminder` | Pushes `remind_at` forward by 1 hour. Requires `id`. |
+| `get_reminders` | Returns all records where a reminder is overdue. No parameters. |
+| `snooze_reminder` | Pushes the reminder forward by 1 hour. Requires `id`. |
 
-The hub's `check_reminders()` MCP tool automatically scans every registered extension that advertises `get_reminders` in its `/capabilities` list and surfaces them to the AI agent. The agent can then prompt you to act and call `update_application` (or equivalent) to clear the reminder.
+**How the hub uses these:**
+
+When `check_reminders()` is called, the hub iterates every registered extension, checks its `/capabilities` for an action named `get_reminders`, and if found, calls `POST /execute` with `{ "action": "get_reminders", "parameters": {} }`. It collects the `data` arrays from all extensions and formats them into a single list for the agent.
+
+**Required response shape for `get_reminders`:**
+
+```json
+{ "success": true, "data": [
+  { "id": "<uuid>", "role": "<string>", "company": "<string>", "url": "<string or empty>" }
+] }
+```
+
+The hub's output formatter reads exactly these four fields per record — `id`, `role`, `company`, `url`. `id` is required (it is passed back to `snooze_reminder` and any update action). `role`, `company`, and `url` are rendered in the agent's summary; missing fields display as `?`. If your domain uses different field names, update the formatting block inside `check_reminders()` in `backend/app/mcp/server.py` before registering.
+
+**Required response shape for `snooze_reminder`:**
+
+Accepts `{ "id": "<uuid>" }`. Should advance the record's `remind_at` timestamp by exactly 1 hour and return the updated record:
+
+```json
+{ "success": true, "data": { "id": "<uuid>", "remind_at": "<new ISO timestamp>" } }
+```
+
+**Filtering logic:** `get_reminders` should only return records where `remind_at <= now` (i.e. the reminder has come due). Records where `remind_at` is null or in the future must be excluded — otherwise the agent will surface them before they are actionable.
+
+**Clearing a reminder:** Once the user acts on an item, the agent calls your extension's update action (e.g. a status update) to clear or nullify `remind_at`. There is no hub-level "clear" call — your `/execute` handler should set `remind_at = null` whenever the item is no longer in a pending state.
 
 ---
 
 ## CORS
 
-Your backend must allow requests from the Jesseverse frontend origin. At minimum:
+Your backend must allow cross-origin requests from the hub backend and the hub frontend (served on different domains). Use a wildcard:
 
 ```
-Access-Control-Allow-Origin: https://jesseverse.vercel.app
+Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, POST, OPTIONS
-Access-Control-Allow-Headers: Content-Type
+Access-Control-Allow-Headers: Content-Type, Authorization
 ```
 
-For local development, also allow `http://localhost:3000`.
+Also handle `OPTIONS` preflight on `/capabilities` and `/execute` — return `204` with the same headers. In Next.js, set these both in `next.config.ts` `headers()` **and** in the route handler's `OPTIONS` export, because Next.js does not apply config-level headers to programmatic OPTIONS responses.
 
 **FastAPI example:**
 
@@ -185,7 +209,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://jesseverse.vercel.app", "http://localhost:3000"],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -195,7 +219,15 @@ app.add_middleware(
 
 ## Registering with the hub
 
-Once your backend is deployed, register it from the Jesseverse frontend (paste the URL in the "Connect extension" field) or via curl:
+Once your backend is deployed, you can **preview** it before committing — the hub will fetch your `/info` and `/capabilities` and show you a summary:
+
+```bash
+curl "https://jesseverse-backend.vercel.app/api/extensions/register?url=https://my-expense-tracker.vercel.app"
+```
+
+This is what the Jesseverse frontend uses when you paste a URL into the "Connect extension" field. It does **not** write anything to the registry — it's read-only.
+
+To actually register, use the frontend confirmation step or curl:
 
 ```bash
 curl -X POST https://jesseverse-backend.vercel.app/api/extensions \
