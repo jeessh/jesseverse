@@ -112,23 +112,24 @@ async def use(extension: str, action: str, parameters: dict) -> str:
 
 @mcp.tool()
 async def check_reminders() -> str:
-    """Check for overdue reminders across all registered extensions.
+    """Check for upcoming deadlines across all registered extensions.
 
     For every extension that advertises a get_reminders action, calls that
-    action and collects all overdue items (remind_at <= now). Returns a
-    formatted list so you can act on each one.
+    action and collects results. Extensions may return either a flat list or
+    a grouped object with due_within_3_days / due_within_7_days keys.
 
     Call this proactively at the start of a session.
 
     To act on a reminder:
-      - Clear it: use(extension, "<update_action>", {"id": "...", ...})
-      - Snooze 1 hour: use(extension, "snooze_reminder", {"id": "..."})
+      - Mark done: use(extension, "<update_action>", {"id": "...", ...})
     """
     extensions = ext_service.list_extensions()
     if not extensions:
         return "No extensions registered."
 
-    all_reminders: list[dict] = []
+    # Collect reminders per extension, preserving grouped structure when present
+    sections: list[tuple[str, str, list[dict]]] = []  # (ext_name, section_label, items)
+
     for ext in extensions:
         try:
             caps = await ext_service.fetch_capabilities(ext["url"])
@@ -136,30 +137,46 @@ async def check_reminders() -> str:
             if "get_reminders" not in cap_names:
                 continue
             result = await ext_service.proxy_execute(ext["url"], "get_reminders", {})
-            if result.get("success") and result.get("data"):
-                for item in result["data"]:
+            if not result.get("success"):
+                continue
+            data = result.get("data")
+            if not data:
+                continue
+
+            if isinstance(data, list):
+                # flat array (legacy shape)
+                for item in data:
                     item["_extension"] = ext["name"]
-                all_reminders.extend(result["data"])
+                sections.append((ext["name"], "", data))
+            elif isinstance(data, dict):
+                # grouped shape: { due_within_3_days: [...], due_within_7_days: [...] }
+                soon = data.get("due_within_3_days") or []
+                week = data.get("due_within_7_days") or []
+                for item in soon + week:
+                    item["_extension"] = ext["name"]
+                if soon:
+                    sections.append((ext["name"], "Due within 3 days", soon))
+                if week:
+                    sections.append((ext["name"], "Due within 7 days", week))
         except Exception:
             continue
 
-    if not all_reminders:
-        return "No pending reminders. You're all caught up!"
+    if not sections:
+        return "No upcoming deadlines. You're all caught up!"
 
-    lines = [f"You have {len(all_reminders)} pending reminder(s):\n"]
-    for r in all_reminders:
-        lines.append(
-            f"  • [{r['_extension']}] {r.get('role', '?')} at {r.get('company', '?')}"
-        )
-        if r.get("url"):
-            lines.append(f"      URL: {r['url']}")
-        lines.append(f"      ID: {r['id']}")
-    lines.append(
-        "\nFor each item, act on it and then call your extension's update action to clear it,\n"
-        "or snooze for 1 hour with:\n"
-        '  use(<extension>, "snooze_reminder", {"id": "<id>"})'
-    )
-    return "\n".join(lines)
+    lines: list[str] = []
+    for ext_name, label, items in sections:
+        header = f"[{ext_name}]" + (f" — {label}" if label else "")
+        lines.append(header)
+        for r in items:
+            lines.append(
+                f"  • {r.get('role', '?')} · {r.get('company', '?')}"
+                + (f" — due {r['due_at']}" if r.get("due_at") else "")
+            )
+            lines.append(f"    ID: {r['id']}")
+        lines.append("")
+
+    return "\n".join(lines).strip()
 
 
 # ── auth middleware ─────────────────────────────────────────────────────────────

@@ -155,6 +155,8 @@ Executes one of your actions.
 
 ## Optional: reminders
 
+> **Pull-only.** The MCP server has no way to push notifications or wake itself up on a schedule. `check_reminders()` only runs when you explicitly tell the agent to call it — there is no background process, no webhook, and no way to make it fire automatically. If you want the agent to surface overdue reminders, you have to ask it to check at the start of a session. The in-app UI banner (which polls on an interval) is the only thing that actually runs on its own.
+
 If your extension has items the user should be nudged to act on, you can opt in to the hub's `check_reminders` MCP tool by exposing two additional actions in `/execute`:
 
 | Action | Description |
