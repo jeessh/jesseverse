@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 const API_URL = process.env.API_URL ?? "http://localhost:8000";
 const API_KEY = process.env.API_KEY ?? "";
 
-/** DELETE /api/extensions/[name] — remove an extension */
+// remove an extension by slug
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ name: string }> }

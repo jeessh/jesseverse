@@ -36,7 +36,6 @@ export function ExtensionCard({ extension, isOnline }: Props) {
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              {/* Online/offline dot */}
               {isOnline !== undefined && (
                 <span
                   className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${isOnline ? "bg-green-500" : "bg-muted-foreground/40"}`}

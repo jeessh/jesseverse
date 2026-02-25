@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const extensions = await getExtensions();
 
-  // Check all extension health statuses in parallel — won't block the page if some are slow/down.
+  // check all extension health statuses in parallel — won't block the page if some are slow/down
   const healthResults = await Promise.allSettled(
     extensions.map((ext) => checkExtensionHealth(ext.url))
   );
@@ -23,7 +23,7 @@ export default async function Home() {
     <main className="min-h-screen">
       <div className="mx-auto max-w-4xl px-6 py-16">
 
-        {/* Header */}
+        {/* header */}
         <div className="mb-10">
           <div className="mb-4 flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
@@ -36,7 +36,7 @@ export default async function Home() {
           </p>
         </div>
 
-        {/* Add extension */}
+        {/* add extension */}
         <section className="mb-10">
           <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Connect extension
@@ -44,10 +44,10 @@ export default async function Home() {
           <AddExtension />
         </section>
 
-        {/* Divider */}
+        {/* divider */}
         <div className="mb-8 border-t border-border" />
 
-        {/* Extensions grid */}
+        {/* extensions grid */}
         <section>
           <p className="mb-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Extensions{extensions.length > 0 && ` · ${extensions.length}`}

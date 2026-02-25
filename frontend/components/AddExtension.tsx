@@ -37,7 +37,7 @@ export function AddExtension() {
     try {
       const result = await fetchRegistrationPreview(url.trim());
       setPreview(result);
-      // Use the title from /info as the default name slug
+      // use the title from /info as the default name slug
       const defaultName = result.title
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
@@ -84,7 +84,7 @@ export function AddExtension() {
 
   return (
     <div className="space-y-3">
-      {/* URL input row */}
+      {/* url input row */}
       <form onSubmit={step === "confirm" || step === "done" ? (e) => e.preventDefault() : handleFetchPreview} className="flex gap-2">
         <Input
           type="url"
@@ -114,7 +114,7 @@ export function AddExtension() {
         </Button>
       </form>
 
-      {/* Error state */}
+      {/* error state */}
       {step === "error" && (
         <Card className="border-destructive/50 bg-destructive/10 animate-fade-in">
           <CardContent className="flex items-start gap-3 p-4">
@@ -127,11 +127,11 @@ export function AddExtension() {
         </Card>
       )}
 
-      {/* Confirm state */}
+      {/* confirm state */}
       {(step === "confirm" || step === "saving" || step === "done") && preview && (
         <Card className="animate-fade-in">
           <CardContent className="p-4">
-            {/* Info from /info */}
+            {/* info from /info */}
             <div className="mb-3">
               <p className="text-sm font-semibold">{preview.title}</p>
               <p className="text-xs text-muted-foreground">{preview.description}</p>
@@ -142,7 +142,7 @@ export function AddExtension() {
               )}
             </div>
 
-            {/* Capability chips */}
+            {/* capability chips */}
             <div className="mb-4 flex flex-wrap gap-1.5">
               {preview.capabilities.map((cap) => (
                 <Badge key={cap.name} variant="secondary" className="text-xs">
@@ -151,7 +151,7 @@ export function AddExtension() {
               ))}
             </div>
 
-            {/* Name + register form */}
+            {/* name + register form */}
             <form onSubmit={handleRegister} className="flex gap-2">
               <Input
                 placeholder="Extension slug"

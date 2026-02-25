@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const API_URL = process.env.API_URL ?? "http://localhost:8000";
 
-/**
- * @deprecated Use /api/extensions/register instead.
- * Kept so old bookmarks don't 404. Forwards to the new /register endpoint.
- */
+// deprecated: kept so old bookmarks don’t 404 — forwards to /register
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
   if (!url) {

@@ -17,10 +17,7 @@ export interface Capability {
   parameters?: { name: string; type: string; required?: boolean }[];
 }
 
-// ── Server-side helpers ───────────────────────────────────────────────────────
-// These run only in Next.js server components / server actions.
-// They read private env vars (no NEXT_PUBLIC_ prefix) and call FastAPI directly.
-
+// server-side only — uses private env vars, calls fastapi directly
 const SERVER_API = process.env.API_URL ?? "http://localhost:8000";
 const SERVER_KEY = process.env.API_KEY ?? "";
 
@@ -38,10 +35,7 @@ export async function getExtensions(): Promise<Extension[]> {
   }
 }
 
-/**
- * Fetch live capabilities for a registered extension.
- * Returns null if the extension is unreachable.
- */
+// fetch live capabilities — returns null if the extension is down
 export async function getExtensionCapabilities(url: string): Promise<Capability[] | null> {
   try {
     const res = await fetch(
@@ -56,10 +50,7 @@ export async function getExtensionCapabilities(url: string): Promise<Capability[
   }
 }
 
-/**
- * Check whether an extension is currently reachable.
- * Used server-side to compute the isOnline flag for each card.
- */
+// ping the extension — used to compute the online dot on each card
 export async function checkExtensionHealth(url: string): Promise<boolean> {
   try {
     const res = await fetch(
@@ -72,15 +63,10 @@ export async function checkExtensionHealth(url: string): Promise<boolean> {
   }
 }
 
-// ── Client-side helpers ───────────────────────────────────────────────────────
-// These are called from client components (browser).
-// They talk to Next.js API routes at /api/extensions/*, never to FastAPI directly.
-// The API key never leaves the server.
+// client-side helpers — talk to /api/extensions/* routes, never fastapi directly
+// (the api key never leaves the server)
 
-/**
- * Fetch /info + /capabilities from a URL via the backend register preview endpoint.
- * Used in the AddExtension UI to confirm before the user finalises registration.
- */
+// previews an extension url before the user confirms registration
 export async function fetchRegistrationPreview(url: string): Promise<{
   capabilities: Capability[];
   title: string;
@@ -114,9 +100,6 @@ export async function fetchRegistrationPreview(url: string): Promise<{
   };
 }
 
-/**
- * Register an extension with the hub.
- */
 export async function registerExtension(
   name: string,
   url: string,
@@ -134,9 +117,6 @@ export async function registerExtension(
   return res.json();
 }
 
-/**
- * Remove an extension from the hub.
- */
 export async function removeExtension(name: string): Promise<void> {
   const res = await fetch(`/api/extensions/${encodeURIComponent(name)}`, {
     method: "DELETE",
@@ -144,7 +124,7 @@ export async function removeExtension(name: string): Promise<void> {
   if (!res.ok && res.status !== 404) throw new Error(`Server returned ${res.status}`);
 }
 
-// ── Action execution ──────────────────────────────────────────────────────────
+// ── action execution ────────────────────────────────────────────────────────
 
 export interface ExecuteResult {
   success: boolean;
@@ -152,9 +132,6 @@ export interface ExecuteResult {
   error?: string;
 }
 
-/**
- * Run an action on a registered extension through the hub backend.
- */
 export async function executeAction(
   extensionName: string,
   action: string,

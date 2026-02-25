@@ -29,9 +29,9 @@ def health():
     return {"status": "ok"}
 
 
-# Extension registry REST API
+# extension registry rest api
 app.include_router(extensions_router, prefix="/api/extensions", tags=["Extensions"])
 
-# MCP server — registered as a plain Route so POST /mcp is matched exactly
-# with no 307 redirect (unlike app.mount which always redirects the bare path).
+# mcp server — registered as a plain Route so POST /mcp matches exactly
+# (app.mount always sends a 307 redirect on the bare path)
 app.add_route("/mcp", mcp_asgi_app)

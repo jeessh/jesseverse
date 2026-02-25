@@ -17,7 +17,7 @@ class ExecuteBody(BaseModel):
     parameters: dict = {}
 
 
-# ── Read-only (no auth required) ─────────────────────────────────────────────
+# ── read-only (no auth required) ─────────────────────────────────────────────────────
 
 @router.get("")
 def list_extensions():
@@ -26,10 +26,7 @@ def list_extensions():
 
 @router.get("/register")
 async def register_preview(url: str = Query(..., description="Base URL of the extension")):
-    """
-    Fetch /info and /capabilities from a URL so the frontend can preview the
-    extension before the user confirms registration. Unauthenticated — public metadata only.
-    """
+    # previews /info + /capabilities before the user confirms registration
     clean_url = url.rstrip("/")
     try:
         info = await service.fetch_info(clean_url)
@@ -50,7 +47,7 @@ async def register_preview(url: str = Query(..., description="Base URL of the ex
     return {"info": info, "capabilities": capabilities}
 
 
-# ── Write operations (API key required) ──────────────────────────────────────
+# ── write operations (api key required) ──────────────────────────────────────
 
 @router.post("", status_code=201, dependencies=[Depends(require_api_key)])
 async def register_extension(body: RegisterBody):
@@ -88,10 +85,7 @@ def delete_extension(name: str):
 
 @router.post("/{name}/execute", dependencies=[Depends(require_api_key)])
 async def execute_action(name: str, body: ExecuteBody):
-    """
-    Proxy an action call to the named extension.
-    The extension must be registered and reachable.
-    """
+    # proxy the action to the registered extension
     ext = service.get_extension(name)
     if not ext:
         known = [e["name"] for e in service.list_extensions()]

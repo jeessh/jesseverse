@@ -2,11 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const API_URL = process.env.API_URL ?? "http://localhost:8000";
 
-/**
- * GET /api/extensions/register?url=...
- * Calls the backend GET /api/extensions/register which fetches /info + /capabilities
- * from the extension and returns { info, capabilities } for the UI confirmation step.
- */
+// fetches /info + /capabilities from the extension url so the ui can preview before confirming
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
   if (!url) {

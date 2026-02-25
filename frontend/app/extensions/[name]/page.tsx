@@ -15,12 +15,12 @@ export default async function ExtensionDetailPage({ params }: Props) {
   const { name } = await params;
   const decodedName = decodeURIComponent(name);
 
-  // Find the extension by name from the registry
+  // find by name, 404 if not registered
   const extensions = await getExtensions();
   const ext = extensions.find((e) => e.name === decodedName);
   if (!ext) notFound();
 
-  // Fetch live capabilities — may be null if the extension is down
+  // fetch live capabilities — may be null if the extension is down
   const capabilities = await getExtensionCapabilities(ext.url);
   const isOnline = capabilities !== null;
 
@@ -28,7 +28,7 @@ export default async function ExtensionDetailPage({ params }: Props) {
     <main className="min-h-screen">
       <div className="mx-auto max-w-3xl px-6 py-16">
 
-        {/* Back link */}
+        {/* back link */}
         <Link
           href="/"
           className="mb-8 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -37,7 +37,7 @@ export default async function ExtensionDetailPage({ params }: Props) {
           All extensions
         </Link>
 
-        {/* Header */}
+        {/* header */}
         <div className="mb-8">
           <div className="flex items-start justify-between gap-4 mb-2">
             <div className="flex items-center gap-3">
@@ -46,7 +46,7 @@ export default async function ExtensionDetailPage({ params }: Props) {
               </div>
               <h1 className="text-2xl font-semibold tracking-tight">{ext.name}</h1>
             </div>
-            {/* Status badge */}
+            {/* status badge */}
             <Badge
               variant={isOnline ? "default" : "outline"}
               className={`shrink-0 mt-1 text-xs ${isOnline ? "bg-green-500/15 text-green-600 border-green-500/30" : "text-muted-foreground"}`}
@@ -73,10 +73,10 @@ export default async function ExtensionDetailPage({ params }: Props) {
           </a>
         </div>
 
-        {/* Divider */}
+        {/* divider */}
         <div className="mb-8 border-t border-border" />
 
-        {/* Capabilities */}
+        {/* capabilities */}
         <section>
           <p className="mb-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Actions
@@ -108,7 +108,7 @@ export default async function ExtensionDetailPage({ params }: Props) {
           )}
         </section>
 
-        {/* Metadata footer */}
+        {/* metadata footer */}
         <div className="mt-12 border-t border-border pt-6 text-xs text-muted-foreground/60">
           Registered{" "}
           {new Date(ext.registered_at).toLocaleDateString("en-US", {

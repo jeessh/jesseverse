@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 const API_URL = process.env.API_URL ?? "http://localhost:8000";
 const API_KEY = process.env.API_KEY ?? "";
 
-/** POST /api/extensions/[name]/execute — run an action on an extension */
+// proxy an action call to the named extension
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ name: string }> }

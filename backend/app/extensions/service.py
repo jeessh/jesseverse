@@ -1,11 +1,9 @@
-"""
-Extension service — CRUD against the extensions table + HTTP proxy to extension backends.
-
-Extension protocol (every extension backend must implement):
-    GET  {url}/info          →  { title, description, version, author?, icon_url?, homepage_url? }
-    GET  {url}/capabilities  →  [{ name, description, parameters: [{name, type, required}] }]
-    POST {url}/execute       →  body: { action, parameters }  →  { success, data?, error? }
-"""
+# crud against the extensions table + http proxy to extension backends
+#
+# extension protocol (every extension must implement):
+#   get  {url}/info          →  { title, description, version, author?, icon_url?, homepage_url? }
+#   get  {url}/capabilities  →  [{ name, description, parameters: [{name, type, required}] }]
+#   post {url}/execute       →  body: { action, parameters }  ⇒  { success, data?, error? }
 import httpx
 from app.core.database import get_supabase
 
@@ -41,8 +39,8 @@ def register_extension(
 ) -> dict:
     url = url.rstrip("/")
     db = get_supabase()
-    # supabase-py's SyncQueryRequestBuilder does not support chaining .select()
-    # after .upsert(), so we execute the write then fetch the row separately.
+    # supabase-py doesn't support chaining .select() after .upsert(), so we
+    # do the write then fetch the row in a second call
     db.table("extensions").upsert(
         {
             "name": name,
@@ -64,10 +62,9 @@ def delete_extension(name: str) -> None:
     get_supabase().table("extensions").delete().eq("name", name).execute()
 
 
-# ── Protocol proxy ────────────────────────────────────────────────────────────
+# ── protocol proxy ─────────────────────────────────────────────────────────────
 
 async def fetch_info(url: str) -> dict:
-    """GET {url}/info — returns core metadata about the extension."""
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(f"{url}/info")
         resp.raise_for_status()
@@ -75,7 +72,6 @@ async def fetch_info(url: str) -> dict:
 
 
 async def fetch_capabilities(url: str) -> list[dict]:
-    """GET {url}/capabilities — returns the extension's action list."""
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(f"{url}/capabilities")
         resp.raise_for_status()
@@ -83,7 +79,6 @@ async def fetch_capabilities(url: str) -> list[dict]:
 
 
 async def proxy_execute(url: str, action: str, parameters: dict) -> dict:
-    """POST {url}/execute — runs an action and returns the result."""
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             f"{url}/execute",

@@ -25,7 +25,7 @@ export function ExtensionActionRunner({ extensionName, capability }: Props) {
 
   function setValue(name: string, value: string) {
     setValues((prev) => ({ ...prev, [name]: value }));
-    // Reset result when inputs change
+    // reset result when inputs change
     if (state !== "idle") {
       setState("idle");
       setResult("");
@@ -37,7 +37,7 @@ export function ExtensionActionRunner({ extensionName, capability }: Props) {
     setState("running");
     setResult("");
     try {
-      // Coerce numeric-typed params to numbers
+      // coerce numeric params — inputs always come back as strings
       const coerced: Record<string, unknown> = {};
       for (const p of params) {
         const raw = values[p.name] ?? "";
@@ -69,7 +69,7 @@ export function ExtensionActionRunner({ extensionName, capability }: Props) {
 
   return (
     <div className="rounded-lg border border-border bg-card">
-      {/* Capability header row */}
+      {/* capability header row */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -94,12 +94,12 @@ export function ExtensionActionRunner({ extensionName, capability }: Props) {
         </div>
       </button>
 
-      {/* Description (always visible) */}
+      {/* description (always visible) */}
       {capability.description && (
         <p className="px-4 pb-2 text-xs text-muted-foreground -mt-1">{capability.description}</p>
       )}
 
-      {/* Expanded form */}
+      {/* expanded form */}
       {open && (
         <div className="border-t border-border px-4 py-3 space-y-3">
           <form onSubmit={handleRun} className="space-y-3">
@@ -141,7 +141,7 @@ export function ExtensionActionRunner({ extensionName, capability }: Props) {
             </Button>
           </form>
 
-          {/* Result */}
+          {/* result */}
           {result && (
             <Card className={state === "error" ? "border-destructive/50 bg-destructive/5" : "bg-muted/40"}>
               <CardContent className="p-3">

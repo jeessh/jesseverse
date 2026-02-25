@@ -6,12 +6,12 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     app_name: str = "Jesseverse"
 
-    # Supabase — single secret key (new Supabase API key format)
+    # supabase — single secret key (new supabase api key format)
     supabase_url: str = ""
     supabase_secret_key: str = ""
 
-    # CORS — stored as a plain string so pydantic-settings doesn't try to
-    # JSON-decode it.  Accepts either a comma-separated value or a JSON array.
+    # cors origins — comma-separated string or json array (pydantic-settings
+    # treats json arrays as objects, so we parse it ourselves)
     cors_origins: str = "http://localhost:3000,https://jesseverse.vercel.app"
 
     @property
@@ -21,15 +21,13 @@ class Settings(BaseSettings):
             return json.loads(v)
         return [o.strip() for o in v.split(",") if o.strip()]
 
-    # API key that protects the extension registry write endpoints (POST, DELETE, execute).
-    # Set this in .env — only you need it.
+    # api key for extension write endpoints (post, delete, execute) — set in .env
     api_key: str = "change-me"
 
-    # A single static bearer token that protects the MCP endpoint.
-    # Set this in .env — only you need it.
+    # bearer token for the mcp endpoint — set in .env
     mcp_token: str = "change-me"
 
-    # Public URL of this server (used in MCP auth metadata)
+    # public url of this server (used in mcp auth metadata)
     server_url: str = "https://jesseverse-backend.vercel.app"
 
     class Config:

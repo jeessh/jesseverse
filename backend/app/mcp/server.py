@@ -1,29 +1,10 @@
-"""
-Jesseverse MCP server.
-
-Exposes two tools to any MCP-compatible AI client (Claude Desktop, Cursor, etc.):
-
-  list_extensions()
-      Returns every registered extension and the actions it supports.
-      Calls GET {url}/capabilities on each extension in real time.
-
-  use(extension, action, parameters)
-      Runs any action on any registered extension.
-      Calls POST {url}/execute on the target extension.
-
-Authentication: a single static bearer token stored in .env as MCP_TOKEN.
-Set that token in your MCP client config — no database lookup needed.
-
-MCP client config example (Claude Desktop / Cursor):
-  {
-    "mcpServers": {
-      "jesseverse": {
-        "url": "https://jesseverse-backend.vercel.app/mcp",
-        "headers": { "Authorization": "Bearer <your MCP_TOKEN>" }
-      }
-    }
-  }
-"""
+# jesseverse mcp server
+# exposes three tools: list_extensions, use, check_reminders
+# auth: static bearer token from .env (MCP_TOKEN)
+#
+# mcp client config (claude desktop / cursor):
+#   { "mcpServers": { "jesseverse": { "url": "https://jesseverse-backend.vercel.app/mcp",
+#                                     "headers": { "Authorization": "Bearer <MCP_TOKEN>" } } } }
 import json
 
 import anyio
@@ -36,12 +17,12 @@ from app.extensions import service as ext_service
 
 _settings = get_settings()
 
-# ── FastMCP server ────────────────────────────────────────────────────────────
+# ── mcp server setup ────────────────────────────────────────────────────────────
 
 mcp = FastMCP("jesseverse")
 
 def _format_param(p: dict) -> str:
-    """Render one capability parameter as a readable line for the AI."""
+    # formats a capability parameter as a human-readable line for the ai
     req = "required" if p.get("required") else "optional"
     line = f"      {p['name']} ({p.get('type', 'string')}, {req})"
     desc = p.get("description")
@@ -72,7 +53,7 @@ async def list_extensions() -> str:
             cap_lines = []
             for cap in caps:
                 params = cap.get("parameters") or []
-                # Action header
+                # action header line
                 cap_lines.append(
                     f"  • {cap['name']}: {cap.get('description', '')}"
                 )
@@ -181,9 +162,8 @@ async def check_reminders() -> str:
     return "\n".join(lines)
 
 
-# ── Auth middleware ───────────────────────────────────────────────────────────
-# Wraps the FastMCP ASGI app and rejects requests with a missing/wrong token
-# before they reach the MCP layer.
+# ── auth middleware ─────────────────────────────────────────────────────────────
+# wraps the fastmcp asgi app and rejects bad tokens before they hit the mcp layer
 
 class _BearerAuthMiddleware:
     def __init__(self, app: ASGIApp, token: str) -> None:
@@ -193,9 +173,6 @@ class _BearerAuthMiddleware:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http":
             method = scope.get("method", "")
-            # Only enforce auth on POST (the actual MCP JSON-RPC calls).
-            # GET requests are unauthenticated probe/SSE checks used by MCP clients
-            # to validate the URL — blocking them with 401 causes "Invalid MCP server URL".
             if method == "POST":
                 headers = {k.lower(): v for k, v in scope.get("headers", [])}
                 auth = headers.get(b"authorization", b"").decode()
@@ -219,15 +196,11 @@ class _BearerAuthMiddleware:
         await self._app(scope, receive, send)
 
 
-# ── Per-request MCP handler ───────────────────────────────────────────────────
-# Uses mcp._mcp_server (the low-level Server FastMCP wraps) with a fresh
-# StreamableHTTPServerTransport per request.  tg.start() waits for the server
-# task to signal readiness before handle_request sends any messages — stateless
-# and Vercel-compatible (no persistent task group needed).
+# ── per-request mcp handler ──────────────────────────────────────────────────────
+# fresh StreamableHTTPServerTransport per request — stateless, vercel-compatible
 
 async def _mcp_handler(scope: Scope, receive: Receive, send: Send) -> None:
-    # GET requests are unauthenticated URL-validity probes from MCP clients.
-    # Return a 200 JSON info response so the client confirms the URL is reachable.
+    # get requests are unauthenticated url-validity probes from mcp clients
     if scope.get("method") == "GET":
         body = json.dumps({
             "name": "jesseverse",
@@ -245,7 +218,7 @@ async def _mcp_handler(scope: Scope, receive: Receive, send: Send) -> None:
         await send({"type": "http.response.body", "body": body})
         return
 
-    server = mcp._mcp_server  # low-level Server with tools already registered
+    server = mcp._mcp_server  # low-level server with tools already registered
     transport = StreamableHTTPServerTransport(
         mcp_session_id=None,
         is_json_response_enabled=True,
@@ -267,5 +240,5 @@ async def _mcp_handler(scope: Scope, receive: Receive, send: Send) -> None:
         tg.cancel_scope.cancel()
 
 
-# mcp_asgi_app is what main.py registers at /mcp.
+# mcp_asgi_app is registered at /mcp in main.py
 mcp_asgi_app = _BearerAuthMiddleware(_mcp_handler, token=_settings.mcp_token)
