@@ -1,51 +1,31 @@
 # jesseverse
 
-My personal platform. A hub that dynamically discovers and orchestrates any tool I build, and exposes all of them to AI agents via MCP — with zero config changes required when I add something new.
+My personal hub. Every app I build plugs into this and immediately shows up on the dashboard and inside Claude/Cursor via MCP — no config changes needed.
 
 ---
 
-## The idea
+## How it works
 
-Every app I build is an **extension**: an independently deployed frontend + backend that plugs into jesseverse by implementing a two-endpoint protocol. The hub doesn't know or care what an extension does. It just calls `/capabilities` to learn what it can do, and `/execute` to do it.
-
-This means I can ship a new tool, register its URL, and immediately:
-- See it appear on the hub dashboard
-- Use it from Claude or Cursor via MCP
-
-No shared code, no monorepo coupling. Just a URL.
-
----
-
-## Architecture
-
-**This repo — the hub:**
-
-- `frontend/` — Next.js dashboard that lists all registered extensions and links out to them
-- `backend/` — FastAPI server that owns the extension registry, proxies tool calls, and runs a FastMCP server for AI access
-- `supabase/` — one shared Supabase project; the hub owns the `jesseverse` schema, each extension owns its own
-
-**Extensions (separate repos):**
-
-Each extension is fully self-contained — its own frontend, backend, and DB schema. The hub only holds a URL.
-
----
-
-## Extension protocol
-
-Two endpoints. That's the entire contract.
+Every app I build is an extension. Each one just needs two endpoints:
 
 ```
-GET  /capabilities  →  [{ name, description, parameters }]
-POST /execute       →  { action, parameters }  →  { success, data?, error? }
+GET  /capabilities  →  list of actions it can do
+POST /execute       →  run one of those actions
 ```
 
-Register an extension with `POST /api/extensions { name, url, description }` and it's live instantly — on the dashboard and inside the MCP server.
+Register an extension with its URL and it's live instantly — on the dashboard and in the MCP server. The hub doesn't care what an extension does, it just knows how to talk to it.
 
----
+## Structure
 
-## AI / MCP integration
+- `frontend/` — dashboard that lists all extensions and links out to them
+- `backend/` — FastAPI server that manages the registry, proxies tool calls, and runs the MCP server
+- `supabase/` — hub owns the `jesseverse` schema; each extension manages its own
 
-jesseverse runs a FastMCP server, so any MCP-compatible client (Claude Desktop, Cursor, etc.) can connect and get real-time access to tools across every registered extension.
+Each extension is its own separate repo with its own frontend, backend, and DB schema.
+
+## MCP
+
+Connect any MCP client (Claude Desktop, Cursor, etc.) and get live access to every extension's tools automatically.
 
 ```json
 {
@@ -58,40 +38,31 @@ jesseverse runs a FastMCP server, so any MCP-compatible client (Claude Desktop, 
 }
 ```
 
-Two tools are exposed:
-
 | Tool | What it does |
 |---|---|
-| `list_extensions()` | Polls every extension's `/capabilities` and returns a live summary |
-| `use(extension, action, parameters)` | Routes a call to any extension's `/execute` |
-
----
+| `list_extensions` | Polls every extension and returns what they can do |
+| `use` | Runs any action on any extension |
 
 ## Running locally
 
 ```bash
-# 1. Apply the hub migration in your Supabase SQL editor
-#    supabase/migrations/001_extensions.sql
-
-# 2. Backend
+# Backend
 cd backend
-cp .env.example .env   # SUPABASE_URL, SUPABASE_SECRET_KEY, MCP_TOKEN
+cp .env.example .env  # SUPABASE_URL, SUPABASE_SECRET_KEY, MCP_TOKEN
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 
-# 3. Frontend
+# Frontend
 cd frontend
-cp .env.local.example .env.local   # NEXT_PUBLIC_API_URL=http://localhost:8000
+cp .env.local.example .env.local  # NEXT_PUBLIC_API_URL=http://localhost:8000
 npm install && npm run dev
 ```
-
----
 
 ## Stack
 
 | | |
 |---|---|
-| Frontend | Next.js 15, TypeScript, Tailwind CSS |
+| Frontend | Next.js 15, TypeScript, Tailwind |
 | Backend | FastAPI, Python |
-| AI/MCP | FastMCP (stateless HTTP, bearer token auth) |
-| Database | Supabase (PostgreSQL) |
+| MCP | FastMCP |
+| Database | Supabase |
