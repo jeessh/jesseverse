@@ -2,8 +2,6 @@
 
 My personal hub. Every app I build (from now on 👍) will integrate with Poke. I always wanted to use my apps from imessage and now I can!
 
----
-
 ## How it works
 
 Every app I build acts like an extension. Each one just needs two endpoints:
