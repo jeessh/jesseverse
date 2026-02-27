@@ -1,62 +1,32 @@
 # jesseverse
 
-My personal hub. Every app I build plugs into this and immediately shows up on the dashboard and inside Claude/Cursor via MCP — no config changes needed.
+My personal hub. Every app I build (from now on 👍) will integrate with Poke. I always wanted to use my apps from imessage and now I can!
 
 ---
 
 ## How it works
 
-Every app I build is an extension. Each one just needs two endpoints:
+Every app I build acts like an extension. Each one just needs two endpoints:
 
 ```
 GET  /capabilities  →  list of actions it can do
 POST /execute       →  run one of those actions
 ```
 
-Register an extension with its URL and it's live instantly — on the dashboard and in the MCP server. The hub doesn't care what an extension does, it just knows how to talk to it.
+Here's the long and difficult steps on attaching my apps to this hub:
+1. Make app
+2. Deploy the app's backend
+3. Give URL
 
-## Structure
+The hub doesn't care what an app does, just how to interact with it. This is done through an MCP protocol, which outlines what each app's API endpoints do to the respective app. The purpose of the hub is to centralize all my future apps into both an organized dashboard, and to have easy access to all of them through iMessage (my MOST used app 🔥).
 
-- `frontend/` — dashboard that lists all extensions and links out to them
-- `backend/` — FastAPI server that manages the registry, proxies tool calls, and runs the MCP server
-- `supabase/` — hub owns the `jesseverse` schema; each extension manages its own
+## It's capabilities
 
-Each extension is its own separate repo with its own frontend, backend, and DB schema.
-
-## MCP
-
-Connect any MCP client (Claude Desktop, Cursor, etc.) and get live access to every extension's tools automatically.
-
-```json
-{
-  "mcpServers": {
-    "jesseverse": {
-      "url": "https://jesseverse-backend.vercel.app/mcp",
-      "headers": { "Authorization": "Bearer <MCP_TOKEN>" }
-    }
-  }
-}
-```
-
-| Tool | What it does |
+| endpoint | What it does |
 |---|---|
 | `list_extensions` | Polls every extension and returns what they can do |
 | `use` | Runs any action on any extension |
 
-## Running locally
-
-```bash
-# Backend
-cd backend
-cp .env.example .env  # SUPABASE_URL, SUPABASE_SECRET_KEY, MCP_TOKEN
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-
-# Frontend
-cd frontend
-cp .env.local.example .env.local  # NEXT_PUBLIC_API_URL=http://localhost:8000
-npm install && npm run dev
-```
 
 ## Stack
 
