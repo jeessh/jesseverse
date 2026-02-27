@@ -101,7 +101,7 @@ export function AddExtension() {
           type="submit"
           disabled={!url.trim() || step === "registering" || step === "saving" || step === "confirm" || step === "done"}
           size="default"
-          className="shrink-0"
+          className="shrink-0 bg-foreground text-background hover:bg-foreground/85 dark:bg-foreground dark:text-background dark:hover:bg-foreground/85"
         >
           {step === "registering" ? (
             <Loader2 className="h-4 w-4 animate-spin" />

@@ -1,24 +1,11 @@
-import { getExtensions, checkExtensionHealth } from "@/lib/extensions";
-import { ExtensionCard } from "@/components/ExtensionCard";
+import { Suspense } from "react";
 import { AddExtension } from "@/components/AddExtension";
+import { ExtensionsGrid, ExtensionsGridSkeleton } from "@/components/ExtensionsGrid";
 import { Blocks } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
-  const extensions = await getExtensions();
-
-  // check all extension health statuses in parallel — won't block the page if some are slow/down
-  const healthResults = await Promise.allSettled(
-    extensions.map((ext) => checkExtensionHealth(ext.url))
-  );
-  const healthMap = Object.fromEntries(
-    extensions.map((ext, i) => [
-      ext.id,
-      healthResults[i].status === "fulfilled" ? healthResults[i].value : false,
-    ])
-  );
-
+export default function Home() {
   return (
     <main className="min-h-screen">
       <div className="mx-auto max-w-4xl px-6 py-16">
@@ -47,26 +34,11 @@ export default async function Home() {
         {/* divider */}
         <div className="mb-8 border-t border-border" />
 
-        {/* extensions grid */}
-        <section>
-          <p className="mb-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Extensions{extensions.length > 0 && ` · ${extensions.length}`}
-          </p>
+        {/* extensions grid — streams in independently */}
+        <Suspense fallback={<ExtensionsGridSkeleton />}>
+          <ExtensionsGrid />
+        </Suspense>
 
-          {extensions.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {extensions.map((ext) => (
-                <ExtensionCard key={ext.id} extension={ext} isOnline={healthMap[ext.id]} />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-14 text-center">
-              <Blocks className="mb-3 h-8 w-8 text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">No extensions connected yet.</p>
-              <p className="mt-1 text-xs text-muted-foreground/60">Paste a server URL above to get started.</p>
-            </div>
-          )}
-        </section>
       </div>
     </main>
   );
