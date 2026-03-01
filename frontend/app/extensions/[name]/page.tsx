@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getExtensions, getExtensionCapabilities } from "@/lib/extensions";
 import { ExtensionActionRunner } from "@/components/ExtensionActionRunner";
+import { DeleteExtensionButton } from "@/components/DeleteExtensionButton";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ExternalLink, Blocks } from "lucide-react";
 
@@ -46,16 +47,19 @@ export default async function ExtensionDetailPage({ params }: Props) {
               </div>
               <h1 className="text-2xl font-semibold tracking-tight">{ext.name}</h1>
             </div>
-            {/* status badge */}
-            <Badge
-              variant={isOnline ? "default" : "outline"}
-              className={`shrink-0 mt-1 text-xs ${isOnline ? "bg-green-500/15 text-green-600 border-green-500/30" : "text-muted-foreground"}`}
-            >
-              <span
-                className={`mr-1.5 h-1.5 w-1.5 rounded-full inline-block ${isOnline ? "bg-green-500" : "bg-muted-foreground/40"}`}
-              />
-              {isOnline ? "Online" : "Unreachable"}
-            </Badge>
+            <div className="flex items-center gap-2 shrink-0 mt-1">
+              {/* status badge */}
+              <Badge
+                variant={isOnline ? "default" : "outline"}
+                className={`text-xs ${isOnline ? "bg-green-500/15 text-green-600 border-green-500/30" : "text-muted-foreground"}`}
+              >
+                <span
+                  className={`mr-1.5 h-1.5 w-1.5 rounded-full inline-block ${isOnline ? "bg-green-500" : "bg-muted-foreground/40"}`}
+                />
+                {isOnline ? "Online" : "Unreachable"}
+              </Badge>
+              <DeleteExtensionButton extensionName={ext.name} />
+            </div>
           </div>
 
           {ext.description && (

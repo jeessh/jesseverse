@@ -11,28 +11,28 @@ export default function Home() {
       <div className="mx-auto max-w-4xl px-6 py-16">
 
         {/* header */}
-        <div className="mb-10">
-          <div className="mb-4 flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-              <Blocks className="h-4 w-4 text-primary" />
+        <div className="mb-12">
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20 shadow-sm">
+              <Blocks className="h-4.5 w-4.5 text-primary" />
             </div>
-            <h1 className="text-xl font-semibold tracking-tight">Jesseverse</h1>
+            <h1 className="gradient-heading text-2xl font-bold tracking-tight">Jesseverse</h1>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground/80 pl-0.5">
             Your personal hub. Paste an extension URL below to connect it.
           </p>
         </div>
 
         {/* add extension */}
         <section className="mb-10">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60">
             Connect extension
           </p>
           <AddExtension />
         </section>
 
         {/* divider */}
-        <div className="mb-8 border-t border-border" />
+        <div className="mb-8 border-t border-border/60" />
 
         {/* extensions grid — streams in independently */}
         <Suspense fallback={<ExtensionsGridSkeleton />}>

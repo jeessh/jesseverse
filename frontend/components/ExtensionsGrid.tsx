@@ -17,7 +17,7 @@ export async function ExtensionsGrid() {
 
   return (
     <section>
-      <p className="mb-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+      <p className="mb-4 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60">
         Extensions{extensions.length > 0 && ` · ${extensions.length}`}
       </p>
 
@@ -40,19 +40,27 @@ export async function ExtensionsGrid() {
 
 function SkeletonCard() {
   return (
-    <div className="rounded-[calc(var(--radius)+2px)] border border-border bg-card p-5 animate-pulse">
-      <div className="mb-3 flex items-center justify-between gap-2">
+    <div className="rounded-none border border-border/70 bg-card animate-pulse">
+      {/* header row */}
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/20" />
-          <div className="h-4 w-28 rounded-md bg-muted-foreground/15" />
+          <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/20" />
+          <div className="h-3.5 w-24 rounded bg-muted-foreground/15" />
         </div>
-        <div className="h-7 w-7 shrink-0 rounded-md bg-muted-foreground/10" />
+        <div className="h-6 w-6 shrink-0 rounded-md bg-muted-foreground/10" />
       </div>
-      <div className="mb-3 space-y-1.5">
-        <div className="h-3 w-full rounded bg-muted-foreground/10" />
-        <div className="h-3 w-3/4 rounded bg-muted-foreground/10" />
+      {/* description lines */}
+      <div className="px-4 pt-1.5 pb-4 space-y-4">
+        <div className="space-y-1.5">
+          <div className="h-2.5 w-full rounded bg-muted-foreground/10" />
+          <div className="h-2.5 w-3/4 rounded bg-muted-foreground/10" />
+        </div>
+        {/* url row */}
+        <div className="flex items-center gap-1.5 rounded-md bg-muted/40 px-2 py-1 ring-1 ring-border/40">
+          <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/20" />
+          <div className="h-2 w-36 rounded bg-muted-foreground/15" />
+        </div>
       </div>
-      <div className="h-5 w-40 rounded-full bg-muted-foreground/10" />
     </div>
   );
 }
@@ -60,7 +68,7 @@ function SkeletonCard() {
 export function ExtensionsGridSkeleton() {
   return (
     <section>
-      <p className="mb-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+      <p className="mb-4 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60">
         Extensions
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
