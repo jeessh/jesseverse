@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 from app.extensions import service
 from app.core.auth import require_api_key
+import json
 
 router = APIRouter()
 
@@ -15,6 +16,8 @@ class RegisterBody(BaseModel):
 class ExecuteBody(BaseModel):
     action: str
     parameters: dict = {}
+    prompt: str | None = None   # optional: user intent forwarded by caller
+    source: str = "mcp"         # 'mcp' | 'hub'
 
 
 class UpdateBody(BaseModel):
@@ -22,6 +25,8 @@ class UpdateBody(BaseModel):
     url: str | None = None
     description: str | None = None
     icon_url: str | None = None
+    supabase_url: str | None = None
+    vercel_url: str | None = None
 
 
 # ── read-only (no auth required) ─────────────────────────────────────────────────────
@@ -113,5 +118,34 @@ async def execute_action(name: str, body: ExecuteBody):
     try:
         result = await service.proxy_execute(ext["url"], body.action, body.parameters)
     except Exception as e:
+        service.log_action(
+            extension_name=name, action=body.action, params=body.parameters,
+            success=False, error=str(e), prompt=body.prompt, source=body.source,
+        )
         raise HTTPException(status_code=502, detail=str(e))
+
+    # build a compact result_summary (≤500 chars) for the log
+    result_summary: str | None = None
+    if result.get("data") is not None:
+        try:
+            serialized = json.dumps(result["data"], default=str)
+            result_summary = serialized[:500] + ("…" if len(serialized) > 500 else "")
+        except Exception:
+            pass
+
+    service.log_action(
+        extension_name=name, action=body.action, params=body.parameters,
+        success=result.get("success", True),
+        error=result.get("error"),
+        result_summary=result_summary,
+        prompt=body.prompt,
+        source=body.source,
+    )
     return result
+
+
+@router.get("/{name}/logs")
+def get_logs(name: str, limit: int = Query(50, le=200)):
+    if not service.get_extension(name):
+        raise HTTPException(status_code=404, detail="Extension not found")
+    return service.get_action_logs(name, limit=limit)

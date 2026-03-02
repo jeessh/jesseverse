@@ -74,7 +74,7 @@ async def list_extensions() -> str:
 
 
 @mcp.tool()
-async def use(extension: str, action: str, parameters: dict) -> str:
+async def use(extension: str, action: str, parameters: dict, prompt: str | None = None) -> str:
     """Execute an action on a registered extension.
 
     Workflow:
@@ -87,6 +87,7 @@ async def use(extension: str, action: str, parameters: dict) -> str:
         action: Action name exactly as listed under that extension, e.g. "add_application".
         parameters: Dict of parameter values for the action. Use {} when an action needs none.
                     Required parameters must be included; omit optional ones you don't need.
+        prompt: Optional short description of why this action is being called (shown in the hub debug log).
     """
     ext = ext_service.get_extension(extension)
     if not ext:
@@ -99,7 +100,29 @@ async def use(extension: str, action: str, parameters: dict) -> str:
     try:
         result = await ext_service.proxy_execute(ext["url"], action, parameters)
     except Exception as e:
+        ext_service.log_action(
+            extension_name=extension, action=action, params=parameters,
+            success=False, error=str(e), prompt=prompt, source="mcp",
+        )
         return f"Error calling {extension}/{action}: {e}"
+
+    result_summary: str | None = None
+    if result.get("data") is not None:
+        try:
+            serialized = json.dumps(result["data"], default=str)
+            result_summary = serialized[:500] + ("…" if len(serialized) > 500 else "")
+        except Exception:
+            pass
+
+    ext_service.log_action(
+        extension_name=extension, action=action, params=parameters,
+        success=result.get("success", True),
+        error=result.get("error"),
+        result_summary=result_summary,
+        prompt=prompt,
+        source="mcp",
+    )
+
     if not result.get("success"):
         err = result.get("error", "Unknown error")
         return (

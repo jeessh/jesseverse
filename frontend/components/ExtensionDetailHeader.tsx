@@ -25,18 +25,21 @@ import Image from "next/image";
 interface Props {
   extension: Extension;
   isOnline: boolean;
+  startEditing?: boolean;
 }
 
-export function ExtensionDetailHeader({ extension, isOnline }: Props) {
+export function ExtensionDetailHeader({ extension, isOnline, startEditing = false }: Props) {
   const { toast } = useToast();
   const router = useRouter();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // ── edit state ────────────────────────────────────────────────────
-  const [editing, setEditing] = React.useState(false);
+  const [editing, setEditing] = React.useState(startEditing);
   const [name, setName] = React.useState(extension.name);
   const [url, setUrl] = React.useState(extension.url);
   const [description, setDescription] = React.useState(extension.description ?? "");
+  const [supabaseUrl, setSupabaseUrl] = React.useState(extension.supabase_url ?? "");
+  const [vercelUrl, setVercelUrl] = React.useState(extension.vercel_url ?? "");
   const [iconUrl, setIconUrl] = React.useState(extension.icon_url ?? "");
   const [iconDirty, setIconDirty] = React.useState(false);
   const [iconSearch, setIconSearch] = React.useState("");
@@ -86,6 +89,8 @@ export function ExtensionDetailHeader({ extension, isOnline }: Props) {
     setName(extension.name);
     setUrl(extension.url);
     setDescription(extension.description ?? "");
+    setSupabaseUrl(extension.supabase_url ?? "");
+    setVercelUrl(extension.vercel_url ?? "");
     setIconUrl(extension.icon_url ?? "");
     setIconDirty(false);
     setIconSearch("");
@@ -118,12 +123,14 @@ export function ExtensionDetailHeader({ extension, isOnline }: Props) {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    const updates: { name?: string; url?: string; description?: string; icon_url?: string } = {};
+    const updates: { name?: string; url?: string; description?: string; icon_url?: string; supabase_url?: string; vercel_url?: string } = {};
     if (name.trim() !== extension.name) updates.name = name.trim();
     if (url.trim() !== extension.url) updates.url = url.trim();
     if (description.trim() !== (extension.description ?? "")) updates.description = description.trim();
     if (iconDirty || (iconUrl ?? "").trim() !== (extension.icon_url ?? ""))
       updates.icon_url = (iconUrl ?? "").trim();
+    if (supabaseUrl.trim() !== (extension.supabase_url ?? "")) updates.supabase_url = supabaseUrl.trim();
+    if (vercelUrl.trim() !== (extension.vercel_url ?? "")) updates.vercel_url = vercelUrl.trim();
 
     if (Object.keys(updates).length === 0) { setEditing(false); return; }
 
@@ -298,8 +305,11 @@ export function ExtensionDetailHeader({ extension, isOnline }: Props) {
       </div>
 
       {/* edit modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 animate-modal-backdrop-in">
-        <form onSubmit={handleSave} className="w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl animate-modal-card-in">
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 animate-modal-backdrop-in"
+        onClick={cancelEdit}
+      >
+        <form onSubmit={handleSave} className="w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl animate-modal-card-in" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between border-b border-border px-6 py-4">
             <h2 className="text-sm font-semibold">Edit extension</h2>
             <button type="button" onClick={cancelEdit} className="rounded-lg p-1 text-muted-foreground hover:bg-muted/60 transition-colors">
@@ -322,6 +332,17 @@ export function ExtensionDetailHeader({ extension, isOnline }: Props) {
             <div>
               <label className={labelCls}>Description</label>
               <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What does this extension do?" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Supabase URL</label>
+                <Input value={supabaseUrl} onChange={(e) => setSupabaseUrl(e.target.value)} placeholder="https://supabase.com/…" />
+              </div>
+              <div>
+                <label className={labelCls}>Vercel URL</label>
+                <Input value={vercelUrl} onChange={(e) => setVercelUrl(e.target.value)} placeholder="https://vercel.com/…" />
+              </div>
             </div>
 
             {/* icon */}

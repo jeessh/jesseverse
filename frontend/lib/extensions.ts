@@ -10,6 +10,8 @@ export interface Extension {
   homepage_url: string;
   registered_at: string;
   updated_at?: string;
+  supabase_url?: string | null;
+  vercel_url?: string | null;
 }
 
 export interface CapabilityParameter {
@@ -38,6 +40,20 @@ function serverAuthHeaders(): HeadersInit {
 export async function getExtensions(): Promise<Extension[]> {
   try {
     const res = await fetch(`${SERVER_API}/api/extensions`, { cache: "no-store" });
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
+}
+
+// server-side logs fetch — called from page.tsx so data is ready before render
+export async function getExtensionLogs(extensionName: string): Promise<ActionLog[]> {
+  try {
+    const res = await fetch(
+      `${SERVER_API}/api/extensions/${encodeURIComponent(extensionName)}/logs`,
+      { cache: "no-store" }
+    );
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -136,7 +152,7 @@ export async function removeExtension(name: string): Promise<void> {
 
 export async function updateExtension(
   name: string,
-  updates: { name?: string; url?: string; description?: string; icon_url?: string }
+  updates: { name?: string; url?: string; description?: string; icon_url?: string; supabase_url?: string; vercel_url?: string }
 ): Promise<Extension> {
   const res = await fetch(`/api/extensions/${encodeURIComponent(name)}`, {
     method: "PATCH",
@@ -156,6 +172,27 @@ export interface ExecuteResult {
   success: boolean;
   data?: unknown;
   error?: string;
+}
+
+export interface ActionLog {
+  id: string;
+  extension_name: string;
+  action: string;
+  prompt: string | null;
+  params: Record<string, unknown>;
+  success: boolean;
+  error: string | null;
+  result_summary: string | null;
+  source: string;
+  created_at: string;
+}
+
+export async function getActionLogs(extensionName: string): Promise<ActionLog[]> {
+  const res = await fetch(`/api/extensions/${encodeURIComponent(extensionName)}/logs`, {
+    cache: "no-store",
+  });
+  if (!res.ok) return [];
+  return res.json();
 }
 
 export async function executeAction(

@@ -1,18 +1,24 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getExtensions, getExtensionCapabilities } from "@/lib/extensions";
+import { getExtensions, getExtensionCapabilities, getExtensionLogs } from "@/lib/extensions";
 import { ExtensionActionRunner } from "@/components/ExtensionActionRunner";
 import { ExtensionDetailHeader } from "@/components/ExtensionDetailHeader";
+import { ExtensionActionLog } from "@/components/ExtensionActionLog";
+import { CollapsibleSection } from "@/components/CollapsibleSection";
+import { ExtensionRelevantLinks } from "@/components/ExtensionRelevantLinks";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 interface Props {
   params: Promise<{ name: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default async function ExtensionDetailPage({ params }: Props) {
+export default async function ExtensionDetailPage({ params, searchParams }: Props) {
   const { name } = await params;
+  const sp = await searchParams;
+  const startEditing = sp.edit === "1";
   const decodedName = decodeURIComponent(name);
 
   // find by name, 404 if not registered
@@ -21,7 +27,10 @@ export default async function ExtensionDetailPage({ params }: Props) {
   if (!ext) notFound();
 
   // fetch live capabilities — may be null if the extension is down
-  const capabilities = await getExtensionCapabilities(ext.url);
+  const [capabilities, initialLogs] = await Promise.all([
+    getExtensionCapabilities(ext.url),
+    getExtensionLogs(ext.name),
+  ]);
   const isOnline = capabilities !== null;
 
   return (
@@ -38,18 +47,18 @@ export default async function ExtensionDetailPage({ params }: Props) {
         </Link>
 
         {/* header */}
-        <ExtensionDetailHeader extension={ext} isOnline={isOnline} />
+        <ExtensionDetailHeader extension={ext} isOnline={isOnline} startEditing={startEditing} />
 
-        {/* divider */}
-        <div className="mb-8 border-t border-border" />
+        {/* audit log */}
+        <CollapsibleSection label="Audit log">
+          <ExtensionActionLog extensionName={ext.name} initialLogs={initialLogs} />
+        </CollapsibleSection>
 
-        {/* capabilities */}
-        <section>
-          <p className="mb-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Actions
-            {capabilities && capabilities.length > 0 && ` · ${capabilities.length}`}
-          </p>
-
+        {/* endpoints */}
+        <CollapsibleSection
+          label="Endpoints"
+          count={capabilities?.length ?? 0}
+        >
           {!isOnline ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center">
               <p className="text-sm text-muted-foreground">Extension is unreachable.</p>
@@ -74,7 +83,15 @@ export default async function ExtensionDetailPage({ params }: Props) {
               This extension returned no capabilities.
             </p>
           )}
-        </section>
+        </CollapsibleSection>
+
+        {/* relevant links */}
+        <CollapsibleSection label="Relevant links">
+          <ExtensionRelevantLinks
+            supabaseUrl={ext.supabase_url}
+            vercelUrl={ext.vercel_url}
+          />
+        </CollapsibleSection>
 
         {/* metadata footer */}
         <div className="mt-12 border-t border-border pt-6">

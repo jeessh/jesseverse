@@ -4,6 +4,7 @@
 #   get  {url}/info          →  { title, description, version, author?, icon_url?, homepage_url? }
 #   get  {url}/capabilities  →  [{ name, description, parameters: [{name, type, required}] }]
 #   post {url}/execute       →  body: { action, parameters }  ⇒  { success, data?, error? }
+import json
 import httpx
 from datetime import datetime, timezone
 from app.core.database import get_supabase
@@ -60,7 +61,7 @@ def register_extension(
 
 
 def update_extension(name: str, updates: dict) -> dict:
-    allowed = {k: v for k, v in updates.items() if k in ("name", "url", "description", "icon_url")}
+    allowed = {k: v for k, v in updates.items() if k in ("name", "url", "description", "icon_url", "supabase_url", "vercel_url")}
     if "url" in allowed:
         allowed["url"] = allowed["url"].rstrip("/")
     allowed["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -73,6 +74,47 @@ def update_extension(name: str, updates: dict) -> dict:
 
 def delete_extension(name: str) -> None:
     get_supabase().table("extensions").delete().eq("name", name).execute()
+
+
+# ── action logs ────────────────────────────────────────────────────────────────────────
+
+def log_action(
+    extension_name: str,
+    action: str,
+    params: dict,
+    success: bool,
+    error: str | None = None,
+    result_summary: str | None = None,
+    prompt: str | None = None,
+    source: str = "mcp",
+) -> None:
+    """Fire-and-forget: write one action_log row. Never raises."""
+    try:
+        get_supabase().table("action_logs").insert({
+            "extension_name": extension_name,
+            "action": action,
+            "params": params,
+            "success": success,
+            "error": error,
+            "result_summary": result_summary,
+            "prompt": prompt,
+            "source": source,
+        }).execute()
+    except Exception:
+        pass  # logging should never crash the caller
+
+
+def get_action_logs(extension_name: str, limit: int = 50) -> list[dict]:
+    result = (
+        get_supabase()
+        .table("action_logs")
+        .select("*")
+        .eq("extension_name", extension_name)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return result.data or []
 
 
 # ── protocol proxy ─────────────────────────────────────────────────────────────
