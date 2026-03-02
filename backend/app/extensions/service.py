@@ -5,6 +5,7 @@
 #   get  {url}/capabilities  →  [{ name, description, parameters: [{name, type, required}] }]
 #   post {url}/execute       →  body: { action, parameters }  ⇒  { success, data?, error? }
 import json
+import sys
 import httpx
 from datetime import datetime, timezone
 from app.core.database import get_supabase
@@ -100,8 +101,8 @@ def log_action(
             "prompt": prompt,
             "source": source,
         }).execute()
-    except Exception:
-        pass  # logging should never crash the caller
+    except Exception as exc:
+        print(f"[log_action] FAILED to write audit log: {exc}", file=sys.stderr)
 
 
 def get_action_logs(extension_name: str, limit: int = 50) -> list[dict]:
@@ -139,5 +140,14 @@ async def proxy_execute(url: str, action: str, parameters: dict) -> dict:
             f"{url}/execute",
             json={"action": action, "parameters": parameters},
         )
-        resp.raise_for_status()
+        if not resp.is_success:
+            # capture the full response body so callers can log the real error
+            try:
+                body = resp.json()
+                detail = body.get("error") or body.get("detail") or json.dumps(body)
+            except Exception:
+                detail = resp.text or f"HTTP {resp.status_code}"
+            raise RuntimeError(
+                f"HTTP {resp.status_code} from extension:\n{detail}"
+            )
         return resp.json()
