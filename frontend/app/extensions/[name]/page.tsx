@@ -74,7 +74,6 @@ export default async function ExtensionDetailPage({ params, searchParams }: Prop
                   key={cap.name}
                   extensionName={ext.name}
                   capability={cap}
-                  readOnly
                 />
               ))}
             </div>

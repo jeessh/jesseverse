@@ -102,7 +102,7 @@ async def use(extension: str, action: str, parameters: dict, prompt: str | None 
     except Exception as e:
         ext_service.log_action(
             extension_name=extension, action=action, params=parameters,
-            success=False, error=str(e), prompt=prompt, source="mcp",
+            success=False, error=str(e), prompt=prompt, source="poke",
         )
         return f"Error calling {extension}/{action}: {e}"
 
@@ -120,7 +120,7 @@ async def use(extension: str, action: str, parameters: dict, prompt: str | None 
         error=result.get("error"),
         result_summary=result_summary,
         prompt=prompt,
-        source="mcp",
+        source="poke",
     )
 
     if not result.get("success"):

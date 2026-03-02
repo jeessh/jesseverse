@@ -34,7 +34,7 @@ export function CollapsibleSection({ label, count, defaultOpen = true, children 
           }`}
         />
       </button>
-      <div className={open ? "pb-2" : "hidden"}>{children}</div>
+      <div className={open ? "pb-8" : "hidden"}>{children}</div>
     </section>
   );
 }

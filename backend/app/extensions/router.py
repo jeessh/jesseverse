@@ -17,7 +17,7 @@ class ExecuteBody(BaseModel):
     action: str
     parameters: dict = {}
     prompt: str | None = None   # optional: user intent forwarded by caller
-    source: str = "mcp"         # 'mcp' | 'hub'
+    source: str = "hub"         # 'claude' | 'hub'
 
 
 class UpdateBody(BaseModel):

@@ -203,7 +203,7 @@ export async function executeAction(
   const res = await fetch(`/api/extensions/${encodeURIComponent(extensionName)}/execute`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, parameters }),
+    body: JSON.stringify({ action, parameters, source: "hub" }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

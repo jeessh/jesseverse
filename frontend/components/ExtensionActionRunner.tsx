@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, ChevronDown, ChevronUp, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, ChevronDown, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -69,71 +69,71 @@ export function ExtensionActionRunner({ extensionName, capability, readOnly = fa
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <div className="rounded-xl border border-border bg-card">
       {/* capability header row */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-lg"
+        className="flex w-full items-center justify-between px-5 py-4 text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xl"
       >
         <div className="flex items-center gap-3 min-w-0">
           <span className="font-mono text-sm font-medium truncate">{capability.name}</span>
           {params.length > 0 && (
-            <span className="text-xs text-muted-foreground shrink-0">
+            <span className="text-xs text-muted-foreground/60 shrink-0">
               {params.length} param{params.length !== 1 ? "s" : ""}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0 ml-2">
-          {state === "success" && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
-          {state === "error" && <AlertCircle className="h-3.5 w-3.5 text-destructive" />}
-          {open ? (
-            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          )}
+        <div className="flex items-center gap-2.5 shrink-0 ml-3">
+          {state === "success" && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+          {state === "error" && <AlertCircle className="h-4 w-4 text-destructive" />}
+          <ChevronDown
+            className={`h-4 w-4 text-muted-foreground/50 transition-transform duration-200 ${
+              open ? "rotate-180" : "rotate-0"
+            }`}
+          />
         </div>
       </button>
 
-      {/* description (always visible) */}
+      {/* description (always visible below header) */}
       {capability.description && (
-        <p className="px-4 pb-2 text-xs text-muted-foreground -mt-1">{capability.description}</p>
+        <p className="px-5 pb-4 text-sm text-muted-foreground/70 -mt-1 leading-relaxed">{capability.description}</p>
       )}
 
       {/* expanded: read-only param reference */}
       {open && readOnly && (
-        <div className="border-t border-border px-4 py-3">
+        <div className="border-t border-border px-5 py-4">
           {params.length === 0 ? (
-            <p className="text-xs text-muted-foreground/60 italic">No parameters.</p>
+            <p className="text-sm text-muted-foreground/60 italic">No parameters.</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {params.map((param) => (
-                <div key={param.name}>
+                <div key={param.name} className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-xs font-medium">{param.name}</span>
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal">
+                    <span className="font-mono text-sm font-medium">{param.name}</span>
+                    <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-[18px] font-normal">
                       {param.type}
                     </Badge>
                     {param.required ? (
-                      <span className="text-[10px] text-destructive font-medium">required</span>
+                      <span className="text-xs text-destructive font-medium">required</span>
                     ) : (
-                      <span className="text-[10px] text-muted-foreground/50">optional</span>
+                      <span className="text-xs text-muted-foreground/50">optional</span>
                     )}
                   </div>
                   {param.description && (
-                    <p className="mt-0.5 text-[11px] text-muted-foreground leading-snug">{param.description}</p>
+                    <p className="text-xs text-muted-foreground/70 leading-relaxed">{param.description}</p>
                   )}
                   {param.enum && param.enum.length > 0 && (
-                    <div className="mt-1 flex items-center gap-1 flex-wrap">
-                      <span className="text-[10px] text-muted-foreground/50">enum:</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs text-muted-foreground/50">enum:</span>
                       {param.enum.map((v) => (
-                        <code key={v} className="text-[10px] bg-muted px-1 py-0.5 rounded font-mono">{v}</code>
+                        <code key={v} className="text-xs bg-muted px-1.5 py-0.5 rounded-md font-mono">{v}</code>
                       ))}
                     </div>
                   )}
                   {param.example && !(param.enum && param.enum.length > 0) && (
-                    <p className="mt-0.5 text-[10px] text-muted-foreground/50">
-                      e.g.{" "}<code className="font-mono bg-muted px-1 py-0.5 rounded">{param.example}</code>
+                    <p className="text-xs text-muted-foreground/50">
+                      e.g.{" "}<code className="font-mono bg-muted px-1.5 py-0.5 rounded-md">{param.example}</code>
                     </p>
                   )}
                 </div>
@@ -145,20 +145,20 @@ export function ExtensionActionRunner({ extensionName, capability, readOnly = fa
 
       {/* expanded: interactive form */}
       {open && !readOnly && (
-        <div className="border-t border-border px-4 py-3 space-y-3">
-          <form onSubmit={handleRun} className="space-y-3">
+        <div className="border-t border-border px-5 py-4 space-y-4">
+          <form onSubmit={handleRun} className="space-y-4">
             {params.map((param) => (
-              <div key={param.name} className="space-y-1">
+              <div key={param.name} className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <label className="text-xs font-medium font-mono">{param.name}</label>
+                  <label className="text-sm font-medium font-mono">{param.name}</label>
                   <Badge
                     variant="outline"
-                    className="text-[10px] px-1.5 py-0 h-4 font-normal"
+                    className="text-[11px] px-1.5 py-0 h-[18px] font-normal"
                   >
                     {param.type}
                   </Badge>
                   {param.required && (
-                    <span className="text-[10px] text-destructive font-medium">required</span>
+                    <span className="text-xs text-destructive font-medium">required</span>
                   )}
                 </div>
                 <Input
@@ -166,7 +166,7 @@ export function ExtensionActionRunner({ extensionName, capability, readOnly = fa
                   onChange={(e) => setValue(param.name, e.target.value)}
                   placeholder={`Enter ${param.name}…`}
                   required={param.required}
-                  className="h-8 text-sm font-mono"
+                  className="h-9 text-sm font-mono"
                   type={param.type === "number" ? "number" : "text"}
                 />
               </div>
@@ -176,7 +176,7 @@ export function ExtensionActionRunner({ extensionName, capability, readOnly = fa
               type="submit"
               size="sm"
               disabled={state === "running"}
-              className="shrink-0"
+              className="mt-1"
             >
               {state === "running" ? (
                 <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -188,8 +188,10 @@ export function ExtensionActionRunner({ extensionName, capability, readOnly = fa
           {/* result */}
           {result && (
             <Card className={state === "error" ? "border-destructive/50 bg-destructive/5" : "bg-muted/40"}>
-              <CardContent className="p-3">
-                <pre className={`text-xs whitespace-pre-wrap break-all font-mono ${state === "error" ? "text-destructive" : "text-foreground"}`}>
+              <CardContent className="p-4">
+                <pre className={`text-sm whitespace-pre-wrap break-all font-mono leading-relaxed ${
+                  state === "error" ? "text-destructive" : "text-foreground/80"
+                }`}>
                   {result}
                 </pre>
               </CardContent>
