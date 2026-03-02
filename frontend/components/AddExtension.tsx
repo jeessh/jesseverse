@@ -95,13 +95,13 @@ export function AddExtension() {
             if (step !== "idle") reset();
           }}
           disabled={step === "registering" || step === "saving"}
-          className="font-mono text-sm"
+          className="font-mono text-sm bg-card border-border/60 focus-visible:ring-primary/40 placeholder:text-muted-foreground/40"
         />
         <Button
           type="submit"
           disabled={!url.trim() || step === "registering" || step === "saving" || step === "confirm" || step === "done"}
           size="default"
-          className="shrink-0 bg-foreground text-background hover:bg-foreground/85 dark:bg-foreground dark:text-background dark:hover:bg-foreground/85"
+          className="shrink-0 bg-primary/90 hover:bg-primary text-primary-foreground transition-colors duration-200"
         >
           {step === "registering" ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -116,7 +116,7 @@ export function AddExtension() {
 
       {/* error state */}
       {step === "error" && (
-        <Card className="border-destructive/50 bg-destructive/10 animate-fade-in">
+        <Card className="border-destructive/40 bg-destructive/8 animate-fade-in">
           <CardContent className="flex items-start gap-3 p-4">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
             <div className="text-sm">
@@ -129,7 +129,7 @@ export function AddExtension() {
 
       {/* confirm state */}
       {(step === "confirm" || step === "saving" || step === "done") && preview && (
-        <Card className="animate-fade-in">
+        <Card className="card-glow animate-fade-in border-primary/20 bg-card">
           <CardContent className="p-4">
             {/* info from /info */}
             <div className="mb-3">
@@ -145,7 +145,7 @@ export function AddExtension() {
             {/* capability chips */}
             <div className="mb-4 flex flex-wrap gap-1.5">
               {preview.capabilities.map((cap) => (
-                <Badge key={cap.name} variant="secondary" className="text-xs">
+                <Badge key={cap.name} variant="secondary" className="text-xs bg-primary/10 text-primary/80 border-primary/20">
                   {cap.name}
                 </Badge>
               ))}
@@ -158,13 +158,13 @@ export function AddExtension() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={step === "saving" || step === "done"}
-                className="h-8 text-sm"
+                className="h-8 text-sm bg-background/50 border-border/60 focus-visible:ring-primary/40"
               />
               <Button
                 type="submit"
                 size="sm"
                 disabled={!name.trim() || step === "saving" || step === "done"}
-                className="shrink-0"
+                className="shrink-0 bg-primary/90 hover:bg-primary text-primary-foreground"
               >
                 {step === "saving" ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -174,7 +174,7 @@ export function AddExtension() {
                   "Register"
                 )}
               </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={reset} className="shrink-0 text-muted-foreground">
+              <Button type="button" size="sm" variant="ghost" onClick={reset} className="shrink-0 text-muted-foreground hover:text-foreground">
                 Cancel
               </Button>
             </form>

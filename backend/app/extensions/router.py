@@ -21,6 +21,7 @@ class UpdateBody(BaseModel):
     name: str | None = None
     url: str | None = None
     description: str | None = None
+    icon_url: str | None = None
 
 
 # ── read-only (no auth required) ─────────────────────────────────────────────────────

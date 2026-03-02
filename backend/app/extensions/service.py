@@ -59,7 +59,7 @@ def register_extension(
 
 
 def update_extension(name: str, updates: dict) -> dict:
-    allowed = {k: v for k, v in updates.items() if k in ("name", "url", "description")}
+    allowed = {k: v for k, v in updates.items() if k in ("name", "url", "description", "icon_url")}
     if "url" in allowed:
         allowed["url"] = allowed["url"].rstrip("/")
     db = get_supabase()

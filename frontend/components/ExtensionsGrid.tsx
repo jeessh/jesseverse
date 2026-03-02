@@ -1,5 +1,6 @@
 import { getExtensions, checkExtensionHealth } from "@/lib/extensions";
 import { ExtensionCard } from "@/components/ExtensionCard";
+import { LoaderReadySignal } from "@/components/PageLoader";
 import { Blocks } from "lucide-react";
 
 export async function ExtensionsGrid() {
@@ -17,6 +18,8 @@ export async function ExtensionsGrid() {
 
   return (
     <section>
+      {/* signals PageLoader that data has resolved and the animation can end */}
+      <LoaderReadySignal />
       <p className="mb-4 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60">
         Extensions{extensions.length > 0 && ` · ${extensions.length}`}
       </p>

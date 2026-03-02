@@ -126,7 +126,7 @@ export async function removeExtension(name: string): Promise<void> {
 
 export async function updateExtension(
   name: string,
-  updates: { name?: string; url?: string; description?: string }
+  updates: { name?: string; url?: string; description?: string; icon_url?: string }
 ): Promise<Extension> {
   const res = await fetch(`/api/extensions/${encodeURIComponent(name)}`, {
     method: "PATCH",

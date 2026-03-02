@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
+import { DM_Serif_Display } from "next/font/google";
 import { ToastProvider } from "@/components/ui/toast";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import "./globals.css";
+
+const dmSerifDisplay = DM_Serif_Display({ subsets: ["latin"], variable: "--font-display", weight: "400", style: ["normal", "italic"] });
 
 export const metadata: Metadata = {
   title: "Jesseverse",
@@ -12,7 +15,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable} ${dmSerifDisplay.variable}`}>
       <head>
         <script
           dangerouslySetInnerHTML={{
