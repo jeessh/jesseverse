@@ -17,6 +17,12 @@ class ExecuteBody(BaseModel):
     parameters: dict = {}
 
 
+class UpdateBody(BaseModel):
+    name: str | None = None
+    url: str | None = None
+    description: str | None = None
+
+
 # ── read-only (no auth required) ─────────────────────────────────────────────────────
 
 @router.get("")
@@ -74,6 +80,16 @@ async def register_extension(body: RegisterBody):
         icon_url=info.get("icon_url", ""),
         homepage_url=info.get("homepage_url", ""),
     )
+
+
+@router.patch("/{name}", dependencies=[Depends(require_api_key)])
+def patch_extension(name: str, body: UpdateBody):
+    if not service.get_extension(name):
+        raise HTTPException(status_code=404, detail="Extension not found")
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    return service.update_extension(name, updates)
 
 
 @router.delete("/{name}", status_code=204, dependencies=[Depends(require_api_key)])

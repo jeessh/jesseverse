@@ -40,7 +40,7 @@ export async function ExtensionsGrid() {
 
 function SkeletonCard() {
   return (
-    <div className="rounded-none border border-border/70 bg-card animate-pulse">
+    <div className="rounded-xl border border-border/70 bg-card animate-pulse">
       {/* header row */}
       <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getExtensions, getExtensionCapabilities } from "@/lib/extensions";
 import { ExtensionActionRunner } from "@/components/ExtensionActionRunner";
-import { DeleteExtensionButton } from "@/components/DeleteExtensionButton";
+import { ExtensionActions } from "@/components/ExtensionActions";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ExternalLink, Blocks } from "lucide-react";
 
@@ -47,19 +47,15 @@ export default async function ExtensionDetailPage({ params }: Props) {
               </div>
               <h1 className="text-2xl font-semibold tracking-tight">{ext.name}</h1>
             </div>
-            <div className="flex items-center gap-2 shrink-0 mt-1">
-              {/* status badge */}
-              <Badge
+            <Badge
                 variant={isOnline ? "default" : "outline"}
-                className={`text-xs ${isOnline ? "bg-green-500/15 text-green-600 border-green-500/30" : "text-muted-foreground"}`}
+                className={`text-xs shrink-0 mt-1 ${isOnline ? "bg-green-500/15 text-green-600 border-green-500/30" : "text-muted-foreground"}`}
               >
                 <span
                   className={`mr-1.5 h-1.5 w-1.5 rounded-full inline-block ${isOnline ? "bg-green-500" : "bg-muted-foreground/40"}`}
                 />
                 {isOnline ? "Online" : "Unreachable"}
               </Badge>
-              <DeleteExtensionButton extensionName={ext.name} />
-            </div>
           </div>
 
           {ext.description && (
@@ -113,13 +109,16 @@ export default async function ExtensionDetailPage({ params }: Props) {
         </section>
 
         {/* metadata footer */}
-        <div className="mt-12 border-t border-border pt-6 text-xs text-muted-foreground/60">
-          Registered{" "}
-          {new Date(ext.registered_at).toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}
+        <div className="mt-12 border-t border-border pt-6 flex items-center justify-between gap-4">
+          <span className="text-xs text-muted-foreground/60">
+            Registered{" "}
+            {new Date(ext.registered_at).toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+          </span>
+          <ExtensionActions extension={ext} />
         </div>
       </div>
     </main>

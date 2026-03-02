@@ -58,6 +58,17 @@ def register_extension(
     return result.data
 
 
+def update_extension(name: str, updates: dict) -> dict:
+    allowed = {k: v for k, v in updates.items() if k in ("name", "url", "description")}
+    if "url" in allowed:
+        allowed["url"] = allowed["url"].rstrip("/")
+    db = get_supabase()
+    db.table("extensions").update(allowed).eq("name", name).execute()
+    new_name = allowed.get("name", name)
+    result = db.table("extensions").select("*").eq("name", new_name).single().execute()
+    return result.data
+
+
 def delete_extension(name: str) -> None:
     get_supabase().table("extensions").delete().eq("name", name).execute()
 

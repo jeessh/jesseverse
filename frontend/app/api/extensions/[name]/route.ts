@@ -3,6 +3,25 @@ import { NextRequest, NextResponse } from "next/server";
 const API_URL = process.env.API_URL ?? "http://localhost:8000";
 const API_KEY = process.env.API_KEY ?? "";
 
+// update name, url, or description
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ name: string }> }
+) {
+  const { name } = await params;
+  const body = await req.json();
+  const res = await fetch(
+    `${API_URL}/api/extensions/${encodeURIComponent(name)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
+      body: JSON.stringify(body),
+    }
+  );
+  const data = await res.json().catch(() => ({}));
+  return NextResponse.json(data, { status: res.status });
+}
+
 // remove an extension by slug
 export async function DELETE(
   _req: NextRequest,

@@ -19,7 +19,7 @@ export default function Home() {
             <h1 className="gradient-heading text-2xl font-bold tracking-tight">Jesseverse</h1>
           </div>
           <p className="text-sm text-muted-foreground/80 pl-0.5">
-            Your personal hub. Paste an extension URL below to connect it.
+            I like building for fun, and now it&apos;ll actually be useful 🔥
           </p>
         </div>
 

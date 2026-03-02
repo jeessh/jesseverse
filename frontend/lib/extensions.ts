@@ -124,6 +124,22 @@ export async function removeExtension(name: string): Promise<void> {
   if (!res.ok && res.status !== 404) throw new Error(`Server returned ${res.status}`);
 }
 
+export async function updateExtension(
+  name: string,
+  updates: { name?: string; url?: string; description?: string }
+): Promise<Extension> {
+  const res = await fetch(`/api/extensions/${encodeURIComponent(name)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.detail ?? `Server returned ${res.status}`);
+  }
+  return res.json();
+}
+
 // ── action execution ────────────────────────────────────────────────────────
 
 export interface ExecuteResult {

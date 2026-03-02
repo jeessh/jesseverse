@@ -12,7 +12,7 @@ interface Props {
 export function ExtensionCard({ extension, isOnline }: Props) {
   return (
     <Link href={`/extensions/${encodeURIComponent(extension.name)}`} className="group block focus:outline-none">
-      <Card className="card-glow h-full rounded-none border-border/70 bg-card">
+      <Card className="card-glow h-full border-border/70 bg-card">
         <CardHeader className="pb-2 pt-4 px-4">
           <div className="flex items-center gap-2 min-w-0">
               {isOnline !== undefined && (
