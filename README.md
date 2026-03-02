@@ -1,6 +1,6 @@
 # jesseverse
 
-My personal hub. Every app I build (from now on 👍) will integrate with Poke. I always wanted to use my apps from imessage and now I can!
+Every app I build (from now on 👍) will be centralized AND will integrate with Poke. I always wanted to use my apps from imessage and now I can!
 
 ## How it works
 
