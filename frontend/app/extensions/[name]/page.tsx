@@ -2,9 +2,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getExtensions, getExtensionCapabilities } from "@/lib/extensions";
 import { ExtensionActionRunner } from "@/components/ExtensionActionRunner";
-import { ExtensionActions } from "@/components/ExtensionActions";
-import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ExternalLink, Blocks } from "lucide-react";
+import { ExtensionDetailHeader } from "@/components/ExtensionDetailHeader";
+import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -39,39 +38,7 @@ export default async function ExtensionDetailPage({ params }: Props) {
         </Link>
 
         {/* header */}
-        <div className="mb-8">
-          <div className="flex items-start justify-between gap-4 mb-2">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                <Blocks className="h-4 w-4 text-primary" />
-              </div>
-              <h1 className="text-2xl font-semibold tracking-tight">{ext.name}</h1>
-            </div>
-            <Badge
-                variant={isOnline ? "default" : "outline"}
-                className={`text-xs shrink-0 mt-1 ${isOnline ? "bg-green-500/15 text-green-600 border-green-500/30" : "text-muted-foreground"}`}
-              >
-                <span
-                  className={`mr-1.5 h-1.5 w-1.5 rounded-full inline-block ${isOnline ? "bg-green-500" : "bg-muted-foreground/40"}`}
-                />
-                {isOnline ? "Online" : "Unreachable"}
-              </Badge>
-          </div>
-
-          {ext.description && (
-            <p className="mt-2 text-sm text-muted-foreground">{ext.description}</p>
-          )}
-
-          <a
-            href={ext.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {ext.url}
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        </div>
+        <ExtensionDetailHeader extension={ext} isOnline={isOnline} />
 
         {/* divider */}
         <div className="mb-8 border-t border-border" />
@@ -98,6 +65,7 @@ export default async function ExtensionDetailPage({ params }: Props) {
                   key={cap.name}
                   extensionName={ext.name}
                   capability={cap}
+                  readOnly
                 />
               ))}
             </div>
@@ -109,7 +77,7 @@ export default async function ExtensionDetailPage({ params }: Props) {
         </section>
 
         {/* metadata footer */}
-        <div className="mt-12 border-t border-border pt-6 flex items-center justify-between gap-4">
+        <div className="mt-12 border-t border-border pt-6">
           <span className="text-xs text-muted-foreground/60">
             Registered{" "}
             {new Date(ext.registered_at).toLocaleDateString("en-US", {
@@ -118,7 +86,6 @@ export default async function ExtensionDetailPage({ params }: Props) {
               day: "numeric",
             })}
           </span>
-          <ExtensionActions extension={ext} />
         </div>
       </div>
     </main>

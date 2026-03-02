@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { X, Loader2, Upload, ImageIcon } from "lucide-react";
+import { X, Loader2, Upload, ImageIcon, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { updateExtension, type Extension } from "@/lib/extensions";
+import { resolveLucideIcon } from "@/lib/icon-resolver";
+import type { LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
@@ -23,7 +25,26 @@ export function EditExtensionModal({ extension, onClose }: Props) {
   const [name, setName] = React.useState(extension.name);
   const [url, setUrl] = React.useState(extension.url);
   const [description, setDescription] = React.useState(extension.description ?? "");
-  const [iconUrl, setIconUrl] = React.useState(extension.icon_url ?? "");  const [iconDirty, setIconDirty] = React.useState(false);  const [uploading, setUploading] = React.useState(false);
+  const [iconUrl, setIconUrl] = React.useState(extension.icon_url ?? "");
+  const [iconDirty, setIconDirty] = React.useState(false);
+  const [iconSearch, setIconSearch] = React.useState("");
+  const [uploading, setUploading] = React.useState(false);
+  const [allIcons, setAllIcons] = React.useState<[string, LucideIcon][] | null>(null);
+
+  // Load icon list on mount so it's ready when the user types
+  React.useEffect(() => {
+    import("@/lib/lucide-all")
+      .then((m) => setAllIcons(m.allLucideIconEntries))
+      .catch((err) => console.error("[icon picker] failed to load lucide-all:", err));
+  }, []);
+
+  const filteredIcons = React.useMemo(() => {
+    const q = iconSearch.trim().toLowerCase();
+    if (!q || !allIcons) return [];
+    return allIcons
+      .filter(([name]) => name.toLowerCase().includes(q))
+      .slice(0, 48);
+  }, [iconSearch, allIcons]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
 
@@ -156,13 +177,22 @@ export function EditExtensionModal({ extension, onClose }: Props) {
             <div className="flex items-center gap-3">
               {/* thumbnail */}
               <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-border bg-muted/50">
-                {iconUrl ? (
-                  <Image src={iconUrl} alt="icon preview" fill className="object-cover" unoptimized />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <ImageIcon className="h-4 w-4 text-muted-foreground/40" />
-                  </div>
-                )}
+                {(() => {
+                  const LI = iconUrl ? resolveLucideIcon(iconUrl) : null;
+                  if (LI) return (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <LI className="h-5 w-5 text-primary/70" strokeWidth={1.5} />
+                    </div>
+                  );
+                  if (iconUrl) return (
+                    <Image src={iconUrl} alt="icon preview" fill className="object-cover" unoptimized />
+                  );
+                  return (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <ImageIcon className="h-4 w-4 text-muted-foreground/40" />
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* upload trigger */}
@@ -197,11 +227,45 @@ export function EditExtensionModal({ extension, onClose }: Props) {
             {/* or paste URL */}
             <div className="mt-2">
               <Input
-                value={iconUrl}
+                value={iconUrl.startsWith("lucide:") ? "" : iconUrl}
                 onChange={(e) => { setIconUrl(e.target.value); setIconDirty(true); }}
-                placeholder="or paste a URL"
+                placeholder={iconUrl.startsWith("lucide:") ? iconUrl : "or paste a URL"}
                 className="text-xs"
               />
+            </div>
+
+            {/* lucide icon search */}
+            <div className="mt-2 space-y-1.5">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground/40 pointer-events-none" />
+                <Input
+                  value={iconSearch}
+                  onChange={(e) => setIconSearch(e.target.value)}
+                  placeholder="or search Lucide icons…"
+                  className="pl-7 text-xs"
+                />
+              </div>
+              {filteredIcons.length > 0 && (
+                <div className="grid grid-cols-8 gap-0.5 max-h-32 overflow-y-auto rounded-lg border border-border bg-muted/30 p-1">
+                  {filteredIcons.map(([name, Icon]) => (
+                    <button
+                      key={name}
+                      type="button"
+                      title={name}
+                      className={`flex items-center justify-center rounded-md p-1.5 transition-colors hover:bg-muted ${
+                        iconUrl === `lucide:${name}` ? "bg-primary/15 ring-1 ring-primary/40" : ""
+                      }`}
+                      onClick={() => {
+                        setIconUrl(`lucide:${name}`);
+                        setIconDirty(true);
+                        setIconSearch("");
+                      }}
+                    >
+                      <Icon className="h-3.5 w-3.5 text-foreground/70" strokeWidth={1.5} />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

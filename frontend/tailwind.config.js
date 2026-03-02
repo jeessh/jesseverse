@@ -55,9 +55,13 @@ module.exports = {
       },
       keyframes: {
         "fade-in": { from: { opacity: "0", transform: "translateY(4px)" }, to: { opacity: "1", transform: "translateY(0)" } },
+        "modal-backdrop-in": { from: { opacity: "0" }, to: { opacity: "1" } },
+        "modal-card-in": { from: { opacity: "0", transform: "scale(0.95) translateY(8px)" }, to: { opacity: "1", transform: "scale(1) translateY(0)" } },
       },
       animation: {
         "fade-in": "fade-in 0.2s ease-out",
+        "modal-backdrop-in": "modal-backdrop-in 0.15s ease-out",
+        "modal-card-in": "modal-card-in 0.18s cubic-bezier(0.16,1,0.3,1)",
       },
     },
   },

@@ -11,10 +11,19 @@ export interface Extension {
   registered_at: string;
 }
 
+export interface CapabilityParameter {
+  name: string;
+  type: string;
+  required?: boolean;
+  description?: string;
+  enum?: string[];
+  example?: string;
+}
+
 export interface Capability {
   name: string;
   description: string;
-  parameters?: { name: string; type: string; required?: boolean }[];
+  parameters?: CapabilityParameter[];
 }
 
 // server-side only — uses private env vars, calls fastapi directly
