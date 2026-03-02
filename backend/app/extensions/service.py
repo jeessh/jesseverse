@@ -5,6 +5,7 @@
 #   get  {url}/capabilities  →  [{ name, description, parameters: [{name, type, required}] }]
 #   post {url}/execute       →  body: { action, parameters }  ⇒  { success, data?, error? }
 import httpx
+from datetime import datetime, timezone
 from app.core.database import get_supabase
 
 
@@ -62,6 +63,7 @@ def update_extension(name: str, updates: dict) -> dict:
     allowed = {k: v for k, v in updates.items() if k in ("name", "url", "description", "icon_url")}
     if "url" in allowed:
         allowed["url"] = allowed["url"].rstrip("/")
+    allowed["updated_at"] = datetime.now(timezone.utc).isoformat()
     db = get_supabase()
     db.table("extensions").update(allowed).eq("name", name).execute()
     new_name = allowed.get("name", name)

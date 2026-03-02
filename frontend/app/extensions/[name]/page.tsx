@@ -79,8 +79,8 @@ export default async function ExtensionDetailPage({ params }: Props) {
         {/* metadata footer */}
         <div className="mt-12 border-t border-border pt-6">
           <span className="text-xs text-muted-foreground/60">
-            Registered{" "}
-            {new Date(ext.registered_at).toLocaleDateString("en-US", {
+            Last updated{" "}
+            {new Date(ext.updated_at ?? ext.registered_at).toLocaleDateString("en-US", {
               year: "numeric",
               month: "long",
               day: "numeric",

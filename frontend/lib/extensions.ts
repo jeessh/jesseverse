@@ -9,6 +9,7 @@ export interface Extension {
   icon_url: string;
   homepage_url: string;
   registered_at: string;
+  updated_at?: string;
 }
 
 export interface CapabilityParameter {
