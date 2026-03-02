@@ -330,3 +330,4 @@ Keep your `CAPABILITIES` list as a Python constant (or a JSON file). This lets y
 - [ ] CORS is configured for the Jesseverse frontend origin
 - [ ] Backend is deployed and publicly reachable
 - [ ] Paste the URL in the Jesseverse frontend — it fetches `/info` and `/capabilities` to preview before you confirm
+- [ ] A home button (linking back to `https://jesseverse.vercel.app`) is present somewhere in the UI — recommended in a fixed bottom-right corner alongside the theme toggle
