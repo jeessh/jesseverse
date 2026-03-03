@@ -96,6 +96,12 @@ async def use(extension: str, action: str, parameters: dict, prompt: str | None 
     ext = ext_service.get_extension(extension)
     if not ext:
         known = [e["name"] for e in ext_service.list_extensions()]
+        ext_service.log_action(
+            extension_name=extension, action=action, params=parameters,
+            success=False,
+            error=f"extension not found; known: {known}",
+            prompt=prompt, source="poke",
+        )
         return (
             f"Extension '{extension}' not found. "
             f"Known extensions: {', '.join(known) or 'none'}. "
