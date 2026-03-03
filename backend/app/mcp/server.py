@@ -41,7 +41,8 @@ def _format_param(p: dict) -> str:
 async def list_extensions() -> str:
     """List every registered extension and the actions each one supports,
     including all parameter types, descriptions, and accepted values.
-    Call this first to discover what you can do before calling use()."""
+    ALWAYS call this before use() — extension slugs and action names must be
+    exact matches from this output or use() will fail."""
     extensions = ext_service.list_extensions()
     if not extensions:
         return "No extensions registered yet. Add one via POST /api/extensions."
@@ -77,26 +78,53 @@ async def list_extensions() -> str:
 async def use(extension: str, action: str, parameters: dict, prompt: str | None = None) -> str:
     """Execute an action on a registered extension.
 
+    IMPORTANT — you must call list_extensions() first to get exact extension
+    slugs and action names. Both values are case-sensitive exact matches.
+    Do NOT guess or infer them; always look them up before calling this.
+
     Workflow:
-      1. Call list_extensions() to see all available extensions, actions, and
-         their required/optional parameters with types and accepted values.
-      2. Call use() with the correct extension name, action name, and parameters.
+      1. list_extensions()  — discover extensions, actions, and parameter schemas.
+      2. use()              — call with the exact slug and action name from step 1.
 
     Args:
-        extension: Extension slug exactly as shown by list_extensions(), e.g. "application-tracker".
+        extension: Extension slug exactly as returned by list_extensions(), e.g. "3mplymnt".
         action: Action name exactly as listed under that extension, e.g. "add_application".
-        parameters: Dict of parameter values for the action. Use {} when an action needs none.
-                    Required parameters must be included; omit optional ones you don't need.
-        prompt: Optional short description of why this action is being called (shown in the hub debug log).
+        parameters: Dict matching the parameter schema. Include all required fields;
+                    omit optional ones you don't need. Use {} when no params needed.
+        prompt: Optional one-line description of why this is being called (shown in audit log).
     """
     ext = ext_service.get_extension(extension)
     if not ext:
         known = [e["name"] for e in ext_service.list_extensions()]
         return (
             f"Extension '{extension}' not found. "
-            f"Registered extensions: {', '.join(known) or 'none'}. "
-            f"Call list_extensions() to see available actions."
+            f"Known extensions: {', '.join(known) or 'none'}. "
+            f"Call list_extensions() to get the exact slugs."
         )
+
+    endpoint = f"{ext['url']}/execute"
+
+    # validate the action name against the extension's capability list before proxying
+    try:
+        caps = await ext_service.fetch_capabilities(ext["url"])
+        valid_actions = [c["name"] for c in caps]
+        if action not in valid_actions:
+            ext_service.log_action(
+                extension_name=extension, action=action, params=parameters,
+                success=False,
+                error=f"action '{action}' not found; valid: {valid_actions}",
+                prompt=prompt, source="poke",
+            )
+            return (
+                f"Action '{action}' not found on extension '{extension}'.\n"
+                f"Endpoint that would have been called: {endpoint}\n"
+                f"Valid actions: {', '.join(valid_actions)}.\n"
+                f"Check the exact name with list_extensions()."
+            )
+    except Exception as cap_err:
+        # capabilities fetch failed — proceed anyway, let the extension return its own error
+        pass
+
     try:
         result = await ext_service.proxy_execute(ext["url"], action, parameters)
     except Exception as e:
@@ -104,7 +132,7 @@ async def use(extension: str, action: str, parameters: dict, prompt: str | None 
             extension_name=extension, action=action, params=parameters,
             success=False, error=str(e), prompt=prompt, source="poke",
         )
-        return f"Error calling {extension}/{action}: {e}"
+        return f"Error calling {endpoint}: {e}"
 
     result_summary: str | None = None
     if result.get("data") is not None:
@@ -126,11 +154,13 @@ async def use(extension: str, action: str, parameters: dict, prompt: str | None 
     if not result.get("success"):
         err = result.get("error", "Unknown error")
         return (
-            f"Error from {extension}/{action}: {err}\n"
-            f"Hint: call list_extensions() to verify the correct action name and parameter names."
+            f"Error from {endpoint} ({action}): {err}\n"
+            f"Hint: call list_extensions() to verify the action name and parameter names."
         )
     data = result.get("data")
-    return json.dumps(data, indent=2, default=str) if data is not None else "Done."
+    if data is not None:
+        return f"# endpoint: {endpoint}\n{json.dumps(data, indent=2, default=str)}"
+    return f"Done. (endpoint: {endpoint})"
 
 
 @mcp.tool()
