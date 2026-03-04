@@ -12,6 +12,7 @@ export interface Extension {
   updated_at?: string;
   supabase_url?: string | null;
   vercel_url?: string | null;
+  last_used_at?: string | null;
 }
 
 export interface CapabilityParameter {

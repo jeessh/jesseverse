@@ -246,7 +246,7 @@ export function GlobalAuditLogModal() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/8 px-3 py-1.5 text-xs font-medium text-primary/75 shadow-[0_0_12px_-2px_hsl(var(--primary)/0.2)] hover:border-primary/40 hover:bg-primary/15 hover:text-primary hover:shadow-[0_0_18px_-2px_hsl(var(--primary)/0.35)] transition-all duration-200"
       >
         <Activity className="h-3.5 w-3.5" />
         Activity

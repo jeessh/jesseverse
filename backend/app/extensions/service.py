@@ -14,8 +14,42 @@ from app.core.database import get_supabase
 # ── Registry (Supabase) ───────────────────────────────────────────────────────
 
 def list_extensions() -> list[dict]:
-    result = get_supabase().table("extensions").select("*").order("name").execute()
-    return result.data or []
+    db = get_supabase()
+    exts = db.table("extensions").select("*").execute().data or []
+    if not exts:
+        return []
+
+    # fetch the latest action-log timestamp per extension (one round-trip)
+    logs = (
+        db.table("action_logs")
+        .select("extension_name, created_at")
+        .order("created_at", desc=True)
+        .limit(500)
+        .execute()
+        .data or []
+    )
+    last_used: dict[str, str] = {}
+    for row in logs:
+        name = row["extension_name"]
+        if name not in last_used:
+            last_used[name] = row["created_at"]
+
+    # attach last_used_at, then sort: most-recently-used first, never-used after (by name)
+    for ext in exts:
+        ext["last_used_at"] = last_used.get(ext["name"])
+
+    def _sort_key(e: dict):
+        ts = e.get("last_used_at")
+        if ts:
+            try:
+                epoch = datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+                return (0, -epoch, "")
+            except Exception:
+                pass
+        return (1, 0.0, e.get("name", ""))
+
+    exts.sort(key=_sort_key)
+    return exts
 
 
 def get_extension(name: str) -> dict | None:
