@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { type Extension } from "@/lib/extensions";
+import { resolveVisibilityStyle } from "@/lib/visibility";
 import { Blocks, ExternalLink } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
@@ -52,16 +53,15 @@ export function ExtensionCard({ extension, isOnline }: Props) {
               )}
             </div>
 
-            {isOnline !== undefined && (
-              <span
-                className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${
-                  isOnline
-                    ? "bg-emerald-500 shadow-[0_0_6px_1px_rgba(16,185,129,0.5)]"
-                    : "bg-muted-foreground/25"
-                }`}
-                title={isOnline ? "Online" : "Unreachable"}
-              />
-            )}
+            {(() => {
+              const { dot, label } = resolveVisibilityStyle(extension.visibility, isOnline);
+              return (
+                <span
+                  className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${dot}`}
+                  title={label}
+                />
+              );
+            })()}
           </div>
 
           {/* name + description */}

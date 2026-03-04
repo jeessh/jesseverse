@@ -27,6 +27,7 @@ class UpdateBody(BaseModel):
     icon_url: str | None = None
     supabase_url: str | None = None
     vercel_url: str | None = None
+    visibility: str | None = None
 
 
 # ── read-only (no auth required) ─────────────────────────────────────────────────────

@@ -13,6 +13,7 @@ export interface Extension {
   supabase_url?: string | null;
   vercel_url?: string | null;
   last_used_at?: string | null;
+  visibility?: string | null;
 }
 
 export interface CapabilityParameter {
@@ -167,7 +168,7 @@ export async function removeExtension(name: string): Promise<void> {
 
 export async function updateExtension(
   name: string,
-  updates: { name?: string; url?: string; description?: string; icon_url?: string; supabase_url?: string; vercel_url?: string }
+  updates: { name?: string; url?: string; description?: string; icon_url?: string; supabase_url?: string; vercel_url?: string; visibility?: string }
 ): Promise<Extension> {
   const res = await fetch(`/api/extensions/${encodeURIComponent(name)}`, {
     method: "PATCH",

@@ -43,7 +43,9 @@ async def list_extensions() -> str:
     including all parameter types, descriptions, and accepted values.
     ALWAYS call this before use() — extension slugs and action names must be
     exact matches from this output or use() will fail."""
-    extensions = ext_service.list_extensions()
+    all_extensions = ext_service.list_extensions()
+    # only expose extensions that are actively online
+    extensions = [e for e in all_extensions if (e.get("visibility") or "online") == "online"]
     if not extensions:
         return "No extensions registered yet. Add one via POST /api/extensions."
 
@@ -95,7 +97,7 @@ async def use(extension: str, action: str, parameters: dict, prompt: str | None 
     """
     ext = ext_service.get_extension(extension)
     if not ext:
-        known = [e["name"] for e in ext_service.list_extensions()]
+        known = [e["name"] for e in ext_service.list_extensions() if (e.get("visibility") or "online") == "online"]
         ext_service.log_action(
             extension_name=extension, action=action, params=parameters,
             success=False,
@@ -106,6 +108,19 @@ async def use(extension: str, action: str, parameters: dict, prompt: str | None 
             f"Extension '{extension}' not found. "
             f"Known extensions: {', '.join(known) or 'none'}. "
             f"Call list_extensions() to get the exact slugs."
+        )
+
+    # block calls to extensions that aren't actively online
+    vis = ext.get("visibility") or "online"
+    if vis != "online":
+        ext_service.log_action(
+            extension_name=extension, action=action, params=parameters,
+            success=False,
+            error=f"extension is not online (visibility={vis})",
+            prompt=prompt, source="poke",
+        )
+        return (
+            f"Extension '{extension}' is currently unavailable (status: {vis.replace('_', ' ')})."
         )
 
     endpoint = f"{ext['url']}/execute"

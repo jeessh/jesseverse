@@ -96,7 +96,7 @@ def register_extension(
 
 
 def update_extension(name: str, updates: dict) -> dict:
-    allowed = {k: v for k, v in updates.items() if k in ("name", "url", "description", "icon_url", "supabase_url", "vercel_url")}
+    allowed = {k: v for k, v in updates.items() if k in ("name", "url", "description", "icon_url", "supabase_url", "vercel_url", "visibility")}
     if "url" in allowed:
         allowed["url"] = allowed["url"].rstrip("/")
     allowed["updated_at"] = datetime.now(timezone.utc).isoformat()

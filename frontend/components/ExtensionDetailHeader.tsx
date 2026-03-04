@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { updateExtension, removeExtension, type Extension } from "@/lib/extensions";
+import { VISIBILITY_CONFIG, resolveVisibilityStyle, type Visibility } from "@/lib/visibility";
 import { useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
@@ -42,6 +43,7 @@ export function ExtensionDetailHeader({ extension, isOnline, startEditing = fals
   const [vercelUrl, setVercelUrl] = React.useState(extension.vercel_url ?? "");
   const [iconUrl, setIconUrl] = React.useState(extension.icon_url ?? "");
   const [iconDirty, setIconDirty] = React.useState(false);
+  const [visibility, setVisibility] = React.useState(extension.visibility ?? "online");
   const [iconSearch, setIconSearch] = React.useState("");
   const [allIcons, setAllIcons] = React.useState<[string, LucideIcon][] | null>(null);
 
@@ -94,6 +96,7 @@ export function ExtensionDetailHeader({ extension, isOnline, startEditing = fals
     setIconUrl(extension.icon_url ?? "");
     setIconDirty(false);
     setIconSearch("");
+    setVisibility(extension.visibility ?? "online");
     setError("");
   }
 
@@ -123,7 +126,7 @@ export function ExtensionDetailHeader({ extension, isOnline, startEditing = fals
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    const updates: { name?: string; url?: string; description?: string; icon_url?: string; supabase_url?: string; vercel_url?: string } = {};
+    const updates: { name?: string; url?: string; description?: string; icon_url?: string; supabase_url?: string; vercel_url?: string; visibility?: string } = {};
     if (name.trim() !== extension.name) updates.name = name.trim();
     if (url.trim() !== extension.url) updates.url = url.trim();
     if (description.trim() !== (extension.description ?? "")) updates.description = description.trim();
@@ -131,6 +134,7 @@ export function ExtensionDetailHeader({ extension, isOnline, startEditing = fals
       updates.icon_url = (iconUrl ?? "").trim();
     if (supabaseUrl.trim() !== (extension.supabase_url ?? "")) updates.supabase_url = supabaseUrl.trim();
     if (vercelUrl.trim() !== (extension.vercel_url ?? "")) updates.vercel_url = vercelUrl.trim();
+    if (visibility !== (extension.visibility ?? "online")) updates.visibility = visibility;
 
     if (Object.keys(updates).length === 0) { setEditing(false); return; }
 
@@ -193,13 +197,15 @@ export function ExtensionDetailHeader({ extension, isOnline, startEditing = fals
           </div>
 
           <div className="flex items-center gap-2 mt-1">
-            <Badge
-              variant={isOnline ? "default" : "outline"}
-              className={`text-xs shrink-0 ${isOnline ? "bg-green-500/15 text-green-600 border-green-500/30" : "text-muted-foreground"}`}
-            >
-              <span className={`mr-1.5 h-1.5 w-1.5 rounded-full inline-block ${isOnline ? "bg-green-500" : "bg-muted-foreground/40"}`} />
-              {isOnline ? "Online" : "Unreachable"}
-            </Badge>
+            {(() => {
+              const { dot, badge, label } = resolveVisibilityStyle(extension.visibility, isOnline);
+              return (
+                <Badge variant="outline" className={`text-xs shrink-0 ${badge}`}>
+                  <span className={`mr-1.5 h-1.5 w-1.5 rounded-full inline-block ${dot}`} />
+                  {label}
+                </Badge>
+              );
+            })()}
 
             <Button
               variant="ghost"
@@ -263,13 +269,15 @@ export function ExtensionDetailHeader({ extension, isOnline, startEditing = fals
             <h1 className="text-2xl font-semibold tracking-tight">{extension.name}</h1>
           </div>
           <div className="flex items-center gap-2 mt-1">
-            <Badge
-              variant={isOnline ? "default" : "outline"}
-              className={`text-xs shrink-0 ${isOnline ? "bg-green-500/15 text-green-600 border-green-500/30" : "text-muted-foreground"}`}
-            >
-              <span className={`mr-1.5 h-1.5 w-1.5 rounded-full inline-block ${isOnline ? "bg-green-500" : "bg-muted-foreground/40"}`} />
-              {isOnline ? "Online" : "Unreachable"}
-            </Badge>
+            {(() => {
+              const { dot, badge, label } = resolveVisibilityStyle(visibility, isOnline);
+              return (
+                <Badge variant="outline" className={`text-xs shrink-0 ${badge}`}>
+                  <span className={`mr-1.5 h-1.5 w-1.5 rounded-full inline-block ${dot}`} />
+                  {label}
+                </Badge>
+              );
+            })()}
             <Button variant="ghost" size="sm" onClick={cancelEdit} className="gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60" disabled>
               <Pencil className="h-3.5 w-3.5" />
               Edit
@@ -332,6 +340,27 @@ export function ExtensionDetailHeader({ extension, isOnline, startEditing = fals
             <div>
               <label className={labelCls}>Description</label>
               <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What does this extension do?" />
+            </div>
+
+            <div>
+              <label className={labelCls}>Status</label>
+              <div className="flex gap-1.5">
+                {(Object.entries(VISIBILITY_CONFIG) as [Visibility, typeof VISIBILITY_CONFIG[Visibility]][]).map(([val, cfg]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setVisibility(val)}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-medium transition-all duration-150 ${
+                      visibility === val
+                        ? "border-primary/40 bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:bg-muted/60"
+                    }`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+                    {cfg.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
