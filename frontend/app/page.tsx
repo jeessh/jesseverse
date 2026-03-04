@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { AddExtension } from "@/components/AddExtension";
+import { ConnectModal } from "@/components/ConnectModal";
+import { GlobalAuditLogModal } from "@/components/GlobalAuditLogModal";
 import { ExtensionsGrid } from "@/components/ExtensionsGrid";
 import { PageLoader } from "@/components/PageLoader";
 import { ParticleField } from "@/components/ParticleField";
@@ -33,18 +34,13 @@ export default function Home() {
 
           {/* soft radial divider */}
           <div className="mt-8 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+
+          {/* hub actions */}
+          <div className="mt-4 flex items-center justify-center gap-2">
+            <ConnectModal />
+            <GlobalAuditLogModal />
+          </div>
         </header>
-
-        {/* add extension */}
-        <section className="mb-10">
-          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60">
-            Connect extension
-          </p>
-          <AddExtension />
-        </section>
-
-        {/* divider */}
-        <div className="mb-8 border-t border-border/60" />
 
         {/* extensions grid with loading animation */}
         <PageLoader>

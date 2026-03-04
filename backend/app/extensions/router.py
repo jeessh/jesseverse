@@ -144,6 +144,11 @@ async def execute_action(name: str, body: ExecuteBody):
     return result
 
 
+@router.get("/logs")
+def get_all_logs(limit: int = Query(100, le=500)):
+    return service.get_all_action_logs(limit=limit)
+
+
 @router.get("/{name}/logs")
 def get_logs(name: str, limit: int = Query(50, le=200)):
     if not service.get_extension(name):

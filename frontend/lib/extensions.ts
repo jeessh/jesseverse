@@ -61,6 +61,20 @@ export async function getExtensionLogs(extensionName: string): Promise<ActionLog
   }
 }
 
+// server-side: fetch logs across all extensions (called from page.tsx RSC if needed)
+export async function getGlobalLogs(limit = 100): Promise<ActionLog[]> {
+  try {
+    const res = await fetch(
+      `${SERVER_API}/api/extensions/logs?limit=${limit}`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
+}
+
 // fetch live capabilities — returns null if the extension is down
 export async function getExtensionCapabilities(url: string): Promise<Capability[] | null> {
   try {
@@ -191,6 +205,12 @@ export async function getActionLogs(extensionName: string): Promise<ActionLog[]>
   const res = await fetch(`/api/extensions/${encodeURIComponent(extensionName)}/logs`, {
     cache: "no-store",
   });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function getAllActionLogs(limit = 100): Promise<ActionLog[]> {
+  const res = await fetch(`/api/extensions/logs?limit=${limit}`, { cache: "no-store" });
   if (!res.ok) return [];
   return res.json();
 }

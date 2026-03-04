@@ -20,7 +20,7 @@ interface RegisterPreview {
   capabilities: Capability[];
 }
 
-export function AddExtension() {
+export function AddExtension({ onDone }: { onDone?: () => void } = {}) {
   const [url, setUrl] = React.useState("");
   const [step, setStep] = React.useState<Step>("idle");
   const [preview, setPreview] = React.useState<RegisterPreview | null>(null);
@@ -68,6 +68,7 @@ export function AddExtension() {
         setName("");
         setPreview(null);
         router.refresh();
+        onDone?.();
       }, 1000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to register");

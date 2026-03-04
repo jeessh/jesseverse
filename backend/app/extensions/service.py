@@ -118,6 +118,18 @@ def get_action_logs(extension_name: str, limit: int = 50) -> list[dict]:
     return result.data or []
 
 
+def get_all_action_logs(limit: int = 100) -> list[dict]:
+    result = (
+        get_supabase()
+        .table("action_logs")
+        .select("*")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return result.data or []
+
+
 # ── protocol proxy ─────────────────────────────────────────────────────────────
 
 async def fetch_info(url: str) -> dict:
