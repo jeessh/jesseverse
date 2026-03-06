@@ -4,11 +4,12 @@ import * as React from "react";
 import { RefreshCw, ChevronDown, CheckCircle2, XCircle, Terminal, ChevronLeft, ChevronRight } from "lucide-react";
 import { getActionLogs, type ActionLog } from "@/lib/extensions";
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 20;
 
 interface Props {
   extensionName: string;
   initialLogs: ActionLog[];
+  initialTotal: number;
 }
 
 function relativeTime(iso: string): string {
@@ -151,42 +152,49 @@ function LogEntry({ log }: { log: ActionLog }) {
   );
 }
 
-export function ExtensionActionLog({ extensionName, initialLogs }: Props) {
+export function ExtensionActionLog({ extensionName, initialLogs, initialTotal }: Props) {
   const [logs, setLogs] = React.useState<ActionLog[]>(initialLogs);
+  const [total, setTotal] = React.useState(initialTotal);
   const [loading, setLoading] = React.useState(false);
   const [spinning, setSpinning] = React.useState(false);
   const [page, setPage] = React.useState(0);
 
-  const load = React.useCallback(
-    async (showSpinner = false) => {
+  const doFetch = React.useCallback(
+    async (fetchPage: number, showSpinner = false) => {
       if (showSpinner) setSpinning(true);
       setLoading(true);
-      const data = await getActionLogs(extensionName);
-      setLogs(data);
+      const result = await getActionLogs(extensionName, PAGE_SIZE, fetchPage * PAGE_SIZE);
+      setLogs(result.data);
+      setTotal(result.total);
       setLoading(false);
       if (showSpinner) setSpinning(false);
     },
     [extensionName]
   );
 
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    doFetch(newPage);
+  };
+
   // no mount fetch — data comes from server via initialLogs
 
-  const totalPages = Math.ceil(logs.length / PAGE_SIZE);
-  const pageLogs = logs.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const pageLogs = logs;
 
   return (
     <div>
       {/* toolbar: entry count + refresh */}
       <div className="mb-3 flex items-center justify-between min-h-[28px]">
         <span className="text-xs text-muted-foreground/70 tabular-nums">
-          {loading ? "" : `${logs.length} ${logs.length === 1 ? "event" : "events"}`}
-          {!loading && logs.length > PAGE_SIZE && (
-            <> &middot; {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, logs.length)}</>
+          {loading ? "" : `${total} ${total === 1 ? "event" : "events"}`}
+          {!loading && total > PAGE_SIZE && (
+            <> &middot; {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)}</>
           )}
         </span>
         <button
           type="button"
-          onClick={() => load(true)}
+          onClick={() => doFetch(page, true)}
           disabled={spinning}
           className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground/75 hover:text-muted-foreground hover:bg-muted/60 transition-colors disabled:opacity-50"
         >
@@ -215,8 +223,8 @@ export function ExtensionActionLog({ extensionName, initialLogs }: Props) {
             <div className="mt-4 flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
+                onClick={() => handlePageChange(Math.max(0, page - 1))}
+                disabled={page === 0 || loading}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
@@ -227,8 +235,8 @@ export function ExtensionActionLog({ extensionName, initialLogs }: Props) {
               </span>
               <button
                 type="button"
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={page === totalPages - 1}
+                onClick={() => handlePageChange(Math.min(totalPages - 1, page + 1))}
+                disabled={page === totalPages - 1 || loading}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 Next

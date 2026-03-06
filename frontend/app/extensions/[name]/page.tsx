@@ -27,7 +27,7 @@ export default async function ExtensionDetailPage({ params, searchParams }: Prop
   if (!ext) notFound();
 
   // fetch live capabilities — may be null if the extension is down
-  const [capabilities, initialLogs] = await Promise.all([
+  const [capabilities, initialLogsResult] = await Promise.all([
     getExtensionCapabilities(ext.url),
     getExtensionLogs(ext.name),
   ]);
@@ -51,7 +51,7 @@ export default async function ExtensionDetailPage({ params, searchParams }: Prop
 
         {/* audit log */}
         <CollapsibleSection label="Audit log">
-          <ExtensionActionLog extensionName={ext.name} initialLogs={initialLogs} />
+          <ExtensionActionLog extensionName={ext.name} initialLogs={initialLogsResult.data} initialTotal={initialLogsResult.total} />
         </CollapsibleSection>
 
         {/* endpoints */}

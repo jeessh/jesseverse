@@ -139,29 +139,42 @@ def log_action(
         print(f"[log_action] FAILED to write audit log: {exc}", file=sys.stderr)
 
 
-def get_action_logs(extension_name: str, limit: int = 50) -> list[dict]:
-    result = (
+def get_action_logs(extension_name: str, limit: int = 20, offset: int = 0) -> dict:
+    q = (
         get_supabase()
         .table("action_logs")
-        .select("*")
+        .select("*", count="exact")
         .eq("extension_name", extension_name)
         .order("created_at", desc=True)
         .limit(limit)
-        .execute()
+        .range(offset, offset + limit - 1)
     )
-    return result.data or []
+    result = q.execute()
+    return {"data": result.data or [], "total": result.count or 0}
 
 
-def get_all_action_logs(limit: int = 100) -> list[dict]:
-    result = (
+def get_all_action_logs(
+    limit: int = 20,
+    offset: int = 0,
+    extension_name: str | None = None,
+    source: str | None = None,
+    success: bool | None = None,
+) -> dict:
+    q = (
         get_supabase()
         .table("action_logs")
-        .select("*")
+        .select("*", count="exact")
         .order("created_at", desc=True)
-        .limit(limit)
-        .execute()
     )
-    return result.data or []
+    if extension_name:
+        q = q.eq("extension_name", extension_name)
+    if source:
+        q = q.eq("source", source)
+    if success is not None:
+        q = q.eq("success", success)
+    q = q.limit(limit).range(offset, offset + limit - 1)
+    result = q.execute()
+    return {"data": result.data or [], "total": result.count or 0}
 
 
 # ── protocol proxy ─────────────────────────────────────────────────────────────

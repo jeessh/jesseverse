@@ -50,30 +50,42 @@ export async function getExtensions(): Promise<Extension[]> {
 }
 
 // server-side logs fetch — called from page.tsx so data is ready before render
-export async function getExtensionLogs(extensionName: string): Promise<ActionLog[]> {
+export async function getExtensionLogs(
+  extensionName: string,
+  limit = 20,
+  offset = 0,
+): Promise<{ data: ActionLog[]; total: number }> {
   try {
     const res = await fetch(
-      `${SERVER_API}/api/extensions/${encodeURIComponent(extensionName)}/logs`,
+      `${SERVER_API}/api/extensions/${encodeURIComponent(extensionName)}/logs?limit=${limit}&offset=${offset}`,
       { cache: "no-store" }
     );
-    if (!res.ok) return [];
+    if (!res.ok) return { data: [], total: 0 };
     return res.json();
   } catch {
-    return [];
+    return { data: [], total: 0 };
   }
 }
 
-// server-side: fetch logs across all extensions (called from page.tsx RSC if needed)
-export async function getGlobalLogs(limit = 100): Promise<ActionLog[]> {
+// server-side: fetch logs across all extensions
+export async function getGlobalLogs(
+  params: { limit?: number; offset?: number; extensionName?: string; source?: string; success?: boolean } = {}
+): Promise<{ data: ActionLog[]; total: number }> {
   try {
+    const sp = new URLSearchParams();
+    if (params.limit !== undefined) sp.set("limit", String(params.limit));
+    if (params.offset !== undefined) sp.set("offset", String(params.offset));
+    if (params.extensionName) sp.set("extension_name", params.extensionName);
+    if (params.source) sp.set("source", params.source);
+    if (params.success !== undefined) sp.set("success", String(params.success));
     const res = await fetch(
-      `${SERVER_API}/api/extensions/logs?limit=${limit}`,
+      `${SERVER_API}/api/extensions/logs?${sp.toString()}`,
       { cache: "no-store" }
     );
-    if (!res.ok) return [];
+    if (!res.ok) return { data: [], total: 0 };
     return res.json();
   } catch {
-    return [];
+    return { data: [], total: 0 };
   }
 }
 
@@ -203,17 +215,31 @@ export interface ActionLog {
   created_at: string;
 }
 
-export async function getActionLogs(extensionName: string): Promise<ActionLog[]> {
-  const res = await fetch(`/api/extensions/${encodeURIComponent(extensionName)}/logs`, {
-    cache: "no-store",
-  });
-  if (!res.ok) return [];
+export async function getActionLogs(
+  extensionName: string,
+  limit = 20,
+  offset = 0,
+): Promise<{ data: ActionLog[]; total: number }> {
+  const sp = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  const res = await fetch(
+    `/api/extensions/${encodeURIComponent(extensionName)}/logs?${sp.toString()}`,
+    { cache: "no-store" },
+  );
+  if (!res.ok) return { data: [], total: 0 };
   return res.json();
 }
 
-export async function getAllActionLogs(limit = 100): Promise<ActionLog[]> {
-  const res = await fetch(`/api/extensions/logs?limit=${limit}`, { cache: "no-store" });
-  if (!res.ok) return [];
+export async function getAllActionLogs(
+  params: { limit?: number; offset?: number; extensionName?: string; source?: string; success?: boolean } = {}
+): Promise<{ data: ActionLog[]; total: number }> {
+  const sp = new URLSearchParams();
+  if (params.limit !== undefined) sp.set("limit", String(params.limit));
+  if (params.offset !== undefined) sp.set("offset", String(params.offset));
+  if (params.extensionName) sp.set("extension_name", params.extensionName);
+  if (params.source) sp.set("source", params.source);
+  if (params.success !== undefined) sp.set("success", String(params.success));
+  const res = await fetch(`/api/extensions/logs?${sp.toString()}`, { cache: "no-store" });
+  if (!res.ok) return { data: [], total: 0 };
   return res.json();
 }
 

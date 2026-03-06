@@ -146,12 +146,28 @@ async def execute_action(name: str, body: ExecuteBody):
 
 
 @router.get("/logs")
-def get_all_logs(limit: int = Query(100, le=500)):
-    return service.get_all_action_logs(limit=limit)
+def get_all_logs(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    extension_name: str | None = Query(None),
+    source: str | None = Query(None),
+    success: bool | None = Query(None),
+):
+    return service.get_all_action_logs(
+        limit=limit,
+        offset=offset,
+        extension_name=extension_name,
+        source=source,
+        success=success,
+    )
 
 
 @router.get("/{name}/logs")
-def get_logs(name: str, limit: int = Query(50, le=200)):
+def get_logs(
+    name: str,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
     if not service.get_extension(name):
         raise HTTPException(status_code=404, detail="Extension not found")
-    return service.get_action_logs(name, limit=limit)
+    return service.get_action_logs(name, limit=limit, offset=offset)

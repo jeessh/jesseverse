@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { getAllActionLogs, type ActionLog } from "@/lib/extensions";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -191,8 +191,10 @@ function FilterPill({
 export function GlobalAuditLogModal() {
   const [open, setOpen] = React.useState(false);
   const [logs, setLogs] = React.useState<ActionLog[]>([]);
+  const [total, setTotal] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
   const [spinning, setSpinning] = React.useState(false);
+  const [initialized, setInitialized] = React.useState(false);
   const [page, setPage] = React.useState(0);
 
   // filter state
@@ -200,46 +202,67 @@ export function GlobalAuditLogModal() {
   const [sourceFilter, setSourceFilter] = React.useState<string>("all");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
 
-  const load = React.useCallback(async (showSpinner = false) => {
+  // extension names for filter pills — loaded once from extensions API
+  const [extensionNames, setExtensionNames] = React.useState<string[]>([]);
+
+  // core fetch — uses explicit args to avoid stale closure issues
+  const doFetch = React.useCallback(async (
+    fetchPage: number,
+    ext: string,
+    src: string,
+    status: string,
+    showSpinner = false,
+  ) => {
     if (showSpinner) setSpinning(true);
     setLoading(true);
-    const data = await getAllActionLogs(200);
-    setLogs(data);
+    const params: Parameters<typeof getAllActionLogs>[0] = {
+      limit: PAGE_SIZE,
+      offset: fetchPage * PAGE_SIZE,
+    };
+    if (ext !== "all") params.extensionName = ext;
+    if (src !== "all") params.source = src;
+    if (status === "success") params.success = true;
+    if (status === "error") params.success = false;
+    const result = await getAllActionLogs(params);
+    setLogs(result.data);
+    setTotal(result.total);
     setLoading(false);
     if (showSpinner) setSpinning(false);
   }, []);
 
   // load on first open
   React.useEffect(() => {
-    if (open && logs.length === 0 && !loading) {
-      load();
+    if (open && !initialized) {
+      setInitialized(true);
+      fetch("/api/extensions")
+        .then((r) => r.json())
+        .then((exts: { name: string }[]) =>
+          setExtensionNames(exts.map((e) => e.name).sort())
+        )
+        .catch(() => {});
+      doFetch(0, "all", "all", "all");
     }
-  }, [open, logs.length, loading, load]);
+  }, [open, initialized, doFetch]);
 
-  // reset page when filters change
-  React.useEffect(() => {
+  const handleFilterChange = React.useCallback((
+    ext: string,
+    src: string,
+    status: string,
+  ) => {
+    setExtFilter(ext);
+    setSourceFilter(src);
+    setStatusFilter(status);
     setPage(0);
-  }, [extFilter, sourceFilter, statusFilter]);
+    doFetch(0, ext, src, status);
+  }, [doFetch]);
 
-  // unique extension names from logs
-  const extensionNames = React.useMemo(
-    () => Array.from(new Set(logs.map((l) => l.extension_name))).sort(),
-    [logs]
-  );
+  const handlePageChange = React.useCallback((newPage: number) => {
+    setPage(newPage);
+    doFetch(newPage, extFilter, sourceFilter, statusFilter);
+  }, [doFetch, extFilter, sourceFilter, statusFilter]);
 
-  // apply filters
-  const filtered = React.useMemo(() => {
-    return logs.filter((l) => {
-      if (extFilter !== "all" && l.extension_name !== extFilter) return false;
-      if (sourceFilter !== "all" && l.source !== sourceFilter) return false;
-      if (statusFilter === "success" && !l.success) return false;
-      if (statusFilter === "error" && l.success) return false;
-      return true;
-    });
-  }, [logs, extFilter, sourceFilter, statusFilter]);
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const pageLogs = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const pageLogs = logs;
 
   return (
     <>
@@ -263,9 +286,9 @@ export function GlobalAuditLogModal() {
             {/* extension filter */}
             {extensionNames.length > 1 && (
               <div className="flex items-center gap-1.5 flex-wrap">
-                <FilterPill label="all" active={extFilter === "all"} onClick={() => setExtFilter("all")} />
+                <FilterPill label="all" active={extFilter === "all"} onClick={() => handleFilterChange("all", sourceFilter, statusFilter)} />
                 {extensionNames.map((n) => (
-                  <FilterPill key={n} label={n} active={extFilter === n} onClick={() => setExtFilter(n)} />
+                  <FilterPill key={n} label={n} active={extFilter === n} onClick={() => handleFilterChange(n, sourceFilter, statusFilter)} />
                 ))}
               </div>
             )}
@@ -277,26 +300,26 @@ export function GlobalAuditLogModal() {
 
             {/* source filter */}
             <div className="flex items-center gap-1.5">
-              <FilterPill label="poke" active={sourceFilter === "poke"} onClick={() => setSourceFilter(sourceFilter === "poke" ? "all" : "poke")} />
-              <FilterPill label="hub" active={sourceFilter === "hub"} onClick={() => setSourceFilter(sourceFilter === "hub" ? "all" : "hub")} />
+              <FilterPill label="poke" active={sourceFilter === "poke"} onClick={() => handleFilterChange(extFilter, sourceFilter === "poke" ? "all" : "poke", statusFilter)} />
+              <FilterPill label="hub" active={sourceFilter === "hub"} onClick={() => handleFilterChange(extFilter, sourceFilter === "hub" ? "all" : "hub", statusFilter)} />
             </div>
 
             <span className="w-px h-4 bg-border mx-0.5 shrink-0" />
 
             {/* status filter */}
             <div className="flex items-center gap-1.5">
-              <FilterPill label="success" active={statusFilter === "success"} onClick={() => setStatusFilter(statusFilter === "success" ? "all" : "success")} />
-              <FilterPill label="error" active={statusFilter === "error"} onClick={() => setStatusFilter(statusFilter === "error" ? "all" : "error")} />
+              <FilterPill label="success" active={statusFilter === "success"} onClick={() => handleFilterChange(extFilter, sourceFilter, statusFilter === "success" ? "all" : "success")} />
+              <FilterPill label="error" active={statusFilter === "error"} onClick={() => handleFilterChange(extFilter, sourceFilter, statusFilter === "error" ? "all" : "error")} />
             </div>
 
             {/* spacer + refresh */}
             <div className="ml-auto flex items-center gap-3">
               <span className="text-xs text-muted-foreground/50 tabular-nums">
-                {loading ? "" : `${filtered.length} event${filtered.length === 1 ? "" : "s"}`}
+                {loading ? "" : `${total} event${total === 1 ? "" : "s"}`}
               </span>
               <button
                 type="button"
-                onClick={() => load(true)}
+                onClick={() => doFetch(page, extFilter, sourceFilter, statusFilter, true)}
                 disabled={spinning}
                 className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground/75 hover:text-muted-foreground hover:bg-muted/60 transition-colors disabled:opacity-50"
               >
@@ -310,7 +333,7 @@ export function GlobalAuditLogModal() {
           <div className="flex-1 overflow-y-auto px-6 py-4">
             {loading ? (
               <LogSkeleton />
-            ) : filtered.length === 0 ? (
+            ) : logs.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Terminal className="h-6 w-6 text-muted-foreground/30 mb-2" />
                 <p className="text-sm text-muted-foreground/60">No audit entries yet.</p>
@@ -332,8 +355,8 @@ export function GlobalAuditLogModal() {
             <div className="px-6 py-3 border-t border-border flex items-center justify-between shrink-0">
               <button
                 type="button"
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
+                onClick={() => handlePageChange(Math.max(0, page - 1))}
+                disabled={page === 0 || loading}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
@@ -344,8 +367,8 @@ export function GlobalAuditLogModal() {
               </span>
               <button
                 type="button"
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={page === totalPages - 1}
+                onClick={() => handlePageChange(Math.min(totalPages - 1, page + 1))}
+                disabled={page === totalPages - 1 || loading}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 Next
