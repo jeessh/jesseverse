@@ -7,8 +7,8 @@ Every app I build (from now on 👍) will be centralized AND will integrate with
 Every app I build acts like an extension. Each one just needs two endpoints:
 
 ```
-GET  /capabilities  →  list of actions it can do
-POST /execute       →  run one of those actions
+GET  /capabilities  -> what each app can do
+POST /execute       -> runs the endpoint selected
 ```
 
 Here's the long and difficult steps on attaching my apps to this hub:
