@@ -4,7 +4,7 @@ import * as React from "react";
 import { RefreshCw, ChevronDown, CheckCircle2, XCircle, Terminal, ChevronLeft, ChevronRight } from "lucide-react";
 import { getActionLogs, type ActionLog } from "@/lib/extensions";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 interface Props {
   extensionName: string;

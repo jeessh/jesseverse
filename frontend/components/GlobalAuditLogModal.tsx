@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { getAllActionLogs, type ActionLog } from "@/lib/extensions";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
