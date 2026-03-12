@@ -344,7 +344,9 @@ class _BearerAuthMiddleware:
                 headers = {k.lower(): v for k, v in scope.get("headers", [])}
                 auth = headers.get(b"authorization", b"").decode()
                 incoming = auth[7:] if auth.lower().startswith("bearer ") else ""
-                if incoming != self._token:
+                api_key = headers.get(b"x-api-key", b"").decode()
+                alt_api_key = headers.get(b"api-key", b"").decode()
+                if incoming != self._token and api_key != self._token and alt_api_key != self._token:
                     body = json.dumps({
                         "error": "invalid_token",
                         "error_description": "Authentication required",
