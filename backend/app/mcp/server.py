@@ -1,5 +1,6 @@
 # jesseverse mcp server
-# exposes three tools: list_extensions, use, check_reminders
+# exposes tools: list_extensions, use, check_reminders,
+#                morning_briefing, create_trigger, list_triggers, delete_trigger
 # auth: static bearer token from .env (MCP_TOKEN)
 #
 # mcp client config (claude desktop / cursor):
@@ -14,6 +15,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.config import get_settings
 from app.extensions import service as ext_service
+from app.reminders import service as rem_service
 
 _settings = get_settings()
 
@@ -251,6 +253,80 @@ async def check_reminders() -> str:
         lines.append("")
 
     return "\n".join(lines).strip()
+
+
+@mcp.tool()
+async def morning_briefing() -> str:
+    """Return today's consolidated morning reminder digest.
+
+    If a digest was already generated today (within the last 24 h) the cached
+    version is returned instantly. Otherwise all extensions are polled live and
+    the result is stored for future calls.
+
+    Call this at the start of each session to surface everything that needs
+    attention across all apps.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    latest = rem_service.get_latest_digest()
+    if latest:
+        generated_at = latest.get("generated_at") or ""
+        try:
+            ts = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+            if datetime.now(timezone.utc) - ts < timedelta(hours=24):
+                return latest.get("raw_text") or "Digest stored but no text found."
+        except Exception:
+            pass
+
+    # nothing fresh — generate on the fly and store
+    row = await rem_service.generate_and_store_digest()
+    return row.get("raw_text") or "No reminders found across all apps."
+
+
+@mcp.tool()
+def list_triggers() -> str:
+    """List all configured reminder triggers (name, schedule, enabled, last run).
+
+    Triggers control when the automated morning digest is generated.
+    """
+    triggers = rem_service.list_triggers()
+    if not triggers:
+        return "No triggers configured."
+    lines: list[str] = []
+    for t in triggers:
+        status = "enabled" if t.get("enabled") else "disabled"
+        last = t.get("last_run_at") or "never"
+        lines.append(
+            f"  • {t['name']} | {t.get('schedule', '?')} | {status} | last run: {last}"
+        )
+    return "Triggers:\n" + "\n".join(lines)
+
+
+@mcp.tool()
+def create_trigger(name: str, schedule: str, action: str = "morning_briefing") -> str:
+    """Create (or update) a named reminder trigger.
+
+    Args:
+        name:     Unique identifier for the trigger, e.g. "morning_briefing".
+        schedule: Cron expression, e.g. "0 9 * * *" for 09:00 UTC daily.
+        action:   Action the cron endpoint should perform. Default: morning_briefing.
+    """
+    t = rem_service.create_trigger(name=name, schedule=schedule, action=action)
+    return f"Trigger '{t['name']}' saved with schedule '{t['schedule']}'."
+
+
+@mcp.tool()
+def delete_trigger(name: str) -> str:
+    """Delete a reminder trigger by name.
+
+    Args:
+        name: Exact name of the trigger to delete (from list_triggers).
+    """
+    existing = rem_service.get_trigger(name)
+    if not existing:
+        return f"Trigger '{name}' not found. Use list_triggers() to see valid names."
+    rem_service.delete_trigger(name)
+    return f"Trigger '{name}' deleted."
 
 
 # ── auth middleware ─────────────────────────────────────────────────────────────

@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # bearer token for the mcp endpoint — set in .env
     mcp_token: str = "change-me"
 
+    # secret for the vercel cron webhook (Authorization: Bearer <cron_secret>)
+    cron_secret: str = "change-me"
+
     # public url of this server (used in mcp auth metadata)
     server_url: str = "https://jesseverse-backend.vercel.app"
 

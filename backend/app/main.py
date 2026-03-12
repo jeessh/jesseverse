@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.extensions.router import router as extensions_router
 from app.mcp.server import mcp_asgi_app
+from app.reminders.router import router as reminders_router
 
 settings = get_settings()
 
@@ -31,6 +32,9 @@ def health():
 
 # extension registry rest api
 app.include_router(extensions_router, prefix="/api/extensions", tags=["Extensions"])
+
+# daily reminder digest + trigger management
+app.include_router(reminders_router, prefix="/api/reminders", tags=["Reminders"])
 
 # mcp server — registered as a plain Route so POST /mcp matches exactly
 # (app.mount always sends a 307 redirect on the bare path)
