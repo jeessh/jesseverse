@@ -4,9 +4,10 @@ Every app I build (from now on 👍) will be centralized AND will integrate with
 
 ## How it works
 
-Every app I build acts like an extension. Each one just needs two endpoints:
+Every app I build acts like an extension. Each one just needs three endpoints:
 
 ```
+GET  /info          -> extension metadata for registration and UI
 GET  /capabilities  -> what each app can do
 POST /execute       -> runs the endpoint selected
 ```
@@ -24,6 +25,10 @@ The hub doesn't care what an app does, just how to interact with it. This is don
 |---|---|
 | `list_extensions` | Polls every extension and returns what they can do |
 | `use` | Runs any action on any extension |
+
+## Activity + analytics
+
+oh yea also I keep track of what happens so when things inevitably break, I won't be too lost :D
 
 
 ## Stack

@@ -10,6 +10,7 @@ import {
   XCircle,
   Terminal,
   Activity,
+  BarChart3,
 } from "lucide-react";
 import {
   Dialog,
@@ -17,7 +18,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getAllActionLogs, type ActionLog } from "@/lib/extensions";
+import {
+  getAllActionLogs,
+  getActionLogAnalytics,
+  type ActionLog,
+  type ActionLogAnalytics,
+} from "@/lib/extensions";
 
 const PAGE_SIZE = 10;
 
@@ -189,6 +195,7 @@ function FilterPill({
 // ── main component ─────────────────────────────────────────────────────────
 
 export function GlobalAuditLogModal() {
+  const [view, setView] = React.useState<"logs" | "analytics">("logs");
   const [open, setOpen] = React.useState(false);
   const [logs, setLogs] = React.useState<ActionLog[]>([]);
   const [total, setTotal] = React.useState(0);
@@ -204,6 +211,9 @@ export function GlobalAuditLogModal() {
 
   // extension names for filter pills — loaded once from extensions API
   const [extensionNames, setExtensionNames] = React.useState<string[]>([]);
+  const [analytics, setAnalytics] = React.useState<ActionLogAnalytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = React.useState(false);
+  const [analyticsDays, setAnalyticsDays] = React.useState<number>(30);
 
   // core fetch — uses explicit args to avoid stale closure issues
   const doFetch = React.useCallback(async (
@@ -230,6 +240,21 @@ export function GlobalAuditLogModal() {
     if (showSpinner) setSpinning(false);
   }, []);
 
+  const fetchAnalytics = React.useCallback(async (
+    ext: string,
+    src: string,
+    days: number,
+  ) => {
+    setAnalyticsLoading(true);
+    const result = await getActionLogAnalytics({
+      days,
+      extensionName: ext === "all" ? undefined : ext,
+      source: src === "all" ? undefined : src,
+    });
+    setAnalytics(result);
+    setAnalyticsLoading(false);
+  }, []);
+
   // load on first open
   React.useEffect(() => {
     if (open && !initialized) {
@@ -241,8 +266,9 @@ export function GlobalAuditLogModal() {
         )
         .catch(() => {});
       doFetch(0, "all", "all", "all");
+      fetchAnalytics("all", "all", analyticsDays);
     }
-  }, [open, initialized, doFetch]);
+  }, [open, initialized, doFetch, fetchAnalytics, analyticsDays]);
 
   const handleFilterChange = React.useCallback((
     ext: string,
@@ -254,7 +280,8 @@ export function GlobalAuditLogModal() {
     setStatusFilter(status);
     setPage(0);
     doFetch(0, ext, src, status);
-  }, [doFetch]);
+    fetchAnalytics(ext, src, analyticsDays);
+  }, [doFetch, fetchAnalytics, analyticsDays]);
 
   const handlePageChange = React.useCallback((newPage: number) => {
     setPage(newPage);
@@ -281,8 +308,33 @@ export function GlobalAuditLogModal() {
             <DialogTitle>Activity log</DialogTitle>
           </DialogHeader>
 
+          <div className="px-6 pb-2 flex items-center gap-2 border-b border-border">
+            <button
+              type="button"
+              onClick={() => setView("logs")}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium border transition-colors ${
+                view === "logs"
+                  ? "bg-primary/10 border-primary/30 text-primary/80"
+                  : "border-border text-muted-foreground/70 hover:bg-muted/60"
+              }`}
+            >
+              Logs
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("analytics")}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium border transition-colors ${
+                view === "analytics"
+                  ? "bg-primary/10 border-primary/30 text-primary/80"
+                  : "border-border text-muted-foreground/70 hover:bg-muted/60"
+              }`}
+            >
+              Analytics
+            </button>
+          </div>
+
           {/* filter bar */}
-          <div className="px-6 pb-2 flex flex-wrap items-center gap-2 border-b border-border">
+          <div className="px-6 pb-2 pt-2 flex flex-wrap items-center gap-2 border-b border-border">
             {/* extension filter */}
             {extensionNames.length > 1 && (
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -314,12 +366,37 @@ export function GlobalAuditLogModal() {
 
             {/* spacer + refresh */}
             <div className="ml-auto flex items-center gap-3">
+              {view === "analytics" && (
+                <select
+                  value={analyticsDays}
+                  onChange={(e) => {
+                    const days = Number(e.target.value);
+                    setAnalyticsDays(days);
+                    fetchAnalytics(extFilter, sourceFilter, days);
+                  }}
+                  className="h-7 rounded-md border border-border bg-card px-2 text-xs text-muted-foreground"
+                >
+                  <option value={7}>7d</option>
+                  <option value={14}>14d</option>
+                  <option value={30}>30d</option>
+                  <option value={90}>90d</option>
+                </select>
+              )}
               <span className="text-xs text-muted-foreground/50 tabular-nums">
-                {loading ? "" : `${total} event${total === 1 ? "" : "s"}`}
+                {view === "logs"
+                  ? loading
+                    ? ""
+                    : `${total} event${total === 1 ? "" : "s"}`
+                  : analytics
+                    ? `${analytics.totals.events} event${analytics.totals.events === 1 ? "" : "s"}`
+                    : ""}
               </span>
               <button
                 type="button"
-                onClick={() => doFetch(page, extFilter, sourceFilter, statusFilter, true)}
+                onClick={() => {
+                  doFetch(page, extFilter, sourceFilter, statusFilter, true);
+                  fetchAnalytics(extFilter, sourceFilter, analyticsDays);
+                }}
                 disabled={spinning}
                 className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground/75 hover:text-muted-foreground hover:bg-muted/60 transition-colors disabled:opacity-50"
               >
@@ -331,9 +408,9 @@ export function GlobalAuditLogModal() {
 
           {/* log list */}
           <div className="flex-1 overflow-y-auto px-6 py-4">
-            {loading ? (
+            {view === "logs" && loading ? (
               <LogSkeleton />
-            ) : logs.length === 0 ? (
+            ) : view === "logs" && logs.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Terminal className="h-6 w-6 text-muted-foreground/30 mb-2" />
                 <p className="text-sm text-muted-foreground/60">No audit entries yet.</p>
@@ -341,17 +418,129 @@ export function GlobalAuditLogModal() {
                   Calls from Claude or the hub will appear here.
                 </p>
               </div>
-            ) : (
+            ) : view === "logs" ? (
               <div className="space-y-2.5">
                 {pageLogs.map((log) => (
                   <LogEntry key={log.id} log={log} />
                 ))}
               </div>
+            ) : analyticsLoading ? (
+              <LogSkeleton />
+            ) : !analytics ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <BarChart3 className="h-6 w-6 text-muted-foreground/30 mb-2" />
+                <p className="text-sm text-muted-foreground/60">No analytics data available.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Events</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">{analytics.totals.events}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Success Rate</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">{analytics.totals.success_rate}%</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Unique Actions</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">{analytics.totals.unique_actions}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Extensions</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">{analytics.totals.unique_extensions}</p>
+                  </div>
+                </div>
+
+                {analytics.sampled && (
+                  <p className="text-xs text-muted-foreground/60">
+                    Showing {analytics.sample_size} of {analytics.total_matching} matching events.
+                  </p>
+                )}
+
+                <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Top Actions</p>
+                  {analytics.top_actions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground/60">No action data.</p>
+                  ) : (
+                    analytics.top_actions.map((item) => {
+                      const max = analytics.top_actions[0]?.count || 1;
+                      const width = Math.max(6, Math.round((item.count / max) * 100));
+                      return (
+                        <div key={item.action} className="space-y-1">
+                          <div className="flex items-center justify-between gap-2 text-xs">
+                            <span className="font-mono truncate">{item.action}</span>
+                            <span className="tabular-nums text-muted-foreground/70">{item.count}</span>
+                          </div>
+                          <div className="h-1.5 rounded bg-muted/60 overflow-hidden">
+                            <div className="h-full bg-primary/70" style={{ width: `${width}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Top Extensions</p>
+                  {analytics.top_extensions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground/60">No extension data.</p>
+                  ) : (
+                    analytics.top_extensions.map((item) => (
+                      <div key={item.extension} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="truncate">{item.extension}</span>
+                        <span className="tabular-nums text-muted-foreground/70">{item.count}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Sources</p>
+                  {analytics.sources.length === 0 ? (
+                    <p className="text-sm text-muted-foreground/60">No source data.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {analytics.sources.map((src) => (
+                        <span key={src.source} className="text-xs rounded-full border border-border bg-muted/40 px-2 py-0.5">
+                          {src.source}: {src.count}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Daily Activity</p>
+                  <div className="max-h-48 overflow-y-auto border border-border/70 rounded-lg">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/40 sticky top-0">
+                        <tr>
+                          <th className="text-left font-medium px-2 py-1.5">Date</th>
+                          <th className="text-right font-medium px-2 py-1.5">Total</th>
+                          <th className="text-right font-medium px-2 py-1.5">Success</th>
+                          <th className="text-right font-medium px-2 py-1.5">Error</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...analytics.daily].reverse().map((d) => (
+                          <tr key={d.date} className="border-t border-border/60">
+                            <td className="px-2 py-1.5 tabular-nums">{d.date}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{d.total}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{d.success}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{d.error}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 
           {/* pagination */}
-          {totalPages > 1 && (
+          {view === "logs" && totalPages > 1 && (
             <div className="px-6 py-3 border-t border-border flex items-center justify-between shrink-0">
               <button
                 type="button"

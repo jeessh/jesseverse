@@ -322,6 +322,22 @@ Keep your `CAPABILITIES` list as a Python constant (or a JSON file). This lets y
 
 ---
 
+## Analytics + activity logs
+
+You do **not** need to add anything new to an extension for hub analytics.
+
+Jesseverse analytics are computed from hub-side `action_logs` records generated
+when the hub proxies `/execute` calls. As long as your extension follows the
+existing contract (`/info`, `/capabilities`, `/execute`), it is included.
+
+Best practices so analytics stay meaningful:
+
+- Keep action names stable over time (avoid renaming often).
+- Return expected failures as `{ "success": false, "error": "..." }`.
+- Keep `error` messages specific enough to diagnose recurring failures.
+
+---
+
 ## Checklist before registering
 
 - [ ] `GET /info` returns `{ title, description, version }` (plus optional `author`, `icon_url`, `homepage_url`)

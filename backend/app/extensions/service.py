@@ -8,7 +8,8 @@ import json
 import sys
 import httpx
 import time
-from datetime import datetime, timezone
+from collections import Counter
+from datetime import datetime, timezone, timedelta
 from app.core.database import get_supabase
 
 
@@ -176,6 +177,103 @@ def get_all_action_logs(
     q = q.limit(limit).range(offset, offset + limit - 1)
     result = q.execute()
     return {"data": result.data or [], "total": result.count or 0}
+
+
+def get_action_log_analytics(
+    days: int = 30,
+    extension_name: str | None = None,
+    source: str | None = None,
+) -> dict:
+    lookback_days = min(max(days, 1), 365)
+    since_dt = datetime.now(timezone.utc) - timedelta(days=lookback_days - 1)
+    since_iso = since_dt.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    q = (
+        get_supabase()
+        .table("action_logs")
+        .select("extension_name, action, source, success, created_at", count="exact")
+        .gte("created_at", since_iso)
+        .order("created_at", desc=False)
+        .limit(5000)
+    )
+    if extension_name:
+        q = q.eq("extension_name", extension_name)
+    if source:
+        q = q.eq("source", source)
+
+    result = q.execute()
+    rows = result.data or []
+    total_matching = result.count or 0
+
+    success_count = 0
+    error_count = 0
+    source_counter: Counter[str] = Counter()
+    action_counter: Counter[str] = Counter()
+    extension_counter: Counter[str] = Counter()
+    daily_map: dict[str, dict[str, int]] = {}
+
+    current_day = since_dt.date()
+    for _ in range(lookback_days):
+        key = current_day.isoformat()
+        daily_map[key] = {"date": key, "total": 0, "success": 0, "error": 0}
+        current_day += timedelta(days=1)
+
+    for row in rows:
+        success = bool(row.get("success"))
+        if success:
+            success_count += 1
+        else:
+            error_count += 1
+
+        src = str(row.get("source") or "unknown")
+        source_counter[src] += 1
+
+        action = str(row.get("action") or "unknown")
+        action_counter[action] += 1
+
+        ext = str(row.get("extension_name") or "unknown")
+        extension_counter[ext] += 1
+
+        created_at = str(row.get("created_at") or "")
+        day_key = created_at[:10] if len(created_at) >= 10 else ""
+        if day_key in daily_map:
+            daily_map[day_key]["total"] += 1
+            if success:
+                daily_map[day_key]["success"] += 1
+            else:
+                daily_map[day_key]["error"] += 1
+
+    total_events = len(rows)
+    success_rate = round((success_count / total_events) * 100, 1) if total_events else 0.0
+
+    return {
+        "window_days": lookback_days,
+        "since": since_iso,
+        "sampled": total_matching > len(rows),
+        "sample_size": len(rows),
+        "total_matching": total_matching,
+        "totals": {
+            "events": total_events,
+            "success": success_count,
+            "error": error_count,
+            "success_rate": success_rate,
+            "unique_actions": len(action_counter),
+            "unique_extensions": len(extension_counter),
+        },
+        "sources": [
+            {"source": name, "count": count}
+            for name, count in source_counter.most_common()
+        ],
+        "top_actions": [
+            {"action": name, "count": count}
+            for name, count in action_counter.most_common(10)
+        ],
+        "top_extensions": [
+            {"extension": name, "count": count}
+            for name, count in extension_counter.most_common(10)
+        ],
+        "daily": list(daily_map.values()),
+    }
 
 
 # ── protocol proxy ─────────────────────────────────────────────────────────────

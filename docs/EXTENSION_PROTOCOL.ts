@@ -21,6 +21,8 @@
  *      Public endpoints (no auth):
  *        GET    /api/extensions           → list all extensions
  *      GET    /api/extensions/register?url → fetch /info + /capabilities for preview
+ *      GET    /api/extensions/logs         → read hub action logs
+ *      GET    /api/extensions/logs/analytics → aggregated activity metrics
  *
  *   2. MCP Server  (POST /mcp — requires Bearer token)
  *      Exposes three tools to any connected AI agent:
@@ -66,6 +68,18 @@
  *
  * The hub does NOT call /capabilities during registration — capabilities are
  * fetched live at query time.
+
+ * ─── ANALYTICS + LOGGING (NO EXTENSION CHANGES REQUIRED) ──────────────────
+ *
+ * Jesseverse analytics are computed entirely from hub-side action_logs
+ * (extension_name, action, source, success, created_at, ...). This means:
+ *
+ *   - You do NOT need to add any new extension endpoint.
+ *   - You do NOT need to change /capabilities shape.
+ *   - You do NOT need to change /execute request format.
+ *
+ * To keep analytics useful, extensions should keep action names stable and
+ * return structured failures as { success: false, error: "..." }.
  *
  * ─── WHAT EXTENSIONS MUST IMPLEMENT ───────────────────────────────────────
  *

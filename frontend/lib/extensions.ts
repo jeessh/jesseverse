@@ -215,6 +215,26 @@ export interface ActionLog {
   created_at: string;
 }
 
+export interface ActionLogAnalytics {
+  window_days: number;
+  since: string;
+  sampled: boolean;
+  sample_size: number;
+  total_matching: number;
+  totals: {
+    events: number;
+    success: number;
+    error: number;
+    success_rate: number;
+    unique_actions: number;
+    unique_extensions: number;
+  };
+  sources: { source: string; count: number }[];
+  top_actions: { action: string; count: number }[];
+  top_extensions: { extension: string; count: number }[];
+  daily: { date: string; total: number; success: number; error: number }[];
+}
+
 export async function getActionLogs(
   extensionName: string,
   limit = 20,
@@ -240,6 +260,20 @@ export async function getAllActionLogs(
   if (params.success !== undefined) sp.set("success", String(params.success));
   const res = await fetch(`/api/extensions/logs?${sp.toString()}`, { cache: "no-store" });
   if (!res.ok) return { data: [], total: 0 };
+  return res.json();
+}
+
+export async function getActionLogAnalytics(
+  params: { days?: number; extensionName?: string; source?: string } = {}
+): Promise<ActionLogAnalytics | null> {
+  const sp = new URLSearchParams();
+  if (params.days !== undefined) sp.set("days", String(params.days));
+  if (params.extensionName) sp.set("extension_name", params.extensionName);
+  if (params.source) sp.set("source", params.source);
+  const res = await fetch(`/api/extensions/logs/analytics?${sp.toString()}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
   return res.json();
 }
 

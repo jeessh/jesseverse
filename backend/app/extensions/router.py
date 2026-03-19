@@ -162,6 +162,19 @@ def get_all_logs(
     )
 
 
+@router.get("/logs/analytics")
+def get_logs_analytics(
+    days: int = Query(30, ge=1, le=365),
+    extension_name: str | None = Query(None),
+    source: str | None = Query(None),
+):
+    return service.get_action_log_analytics(
+        days=days,
+        extension_name=extension_name,
+        source=source,
+    )
+
+
 @router.get("/{name}/logs")
 def get_logs(
     name: str,
