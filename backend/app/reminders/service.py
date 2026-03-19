@@ -12,10 +12,13 @@ import sys
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import anyio
 from croniter import croniter
 
 from app.core.database import get_supabase
 from app.extensions import service as ext_service
+
+_EXTENSION_POLL_CONCURRENCY = 5
 
 
 # ── Reminder gathering ─────────────────────────────────────────────────────────
@@ -31,49 +34,60 @@ async def gather_all_reminders() -> list[dict]:
         if (e.get("visibility") or "online") == "online"
     ]
 
+    sections_by_extension: list[list[dict]] = [[] for _ in extensions]
+    semaphore = anyio.Semaphore(_EXTENSION_POLL_CONCURRENCY)
+
+    async def gather_for_extension(index: int, ext: dict) -> None:
+        async with semaphore:
+            try:
+                caps = await ext_service.fetch_capabilities(ext["url"], use_cache=True)
+                cap_names = {c.get("name") for c in caps}
+                if "get_reminders" not in cap_names:
+                    return
+
+                result = await ext_service.proxy_execute(ext["url"], "get_reminders", {})
+                if not result.get("success"):
+                    return
+
+                data = result.get("data")
+                if not data:
+                    return
+
+                ext_sections: list[dict] = []
+                if isinstance(data, list):
+                    if data:
+                        ext_sections.append({
+                            "extension": ext["name"],
+                            "label": "",
+                            "items": data,
+                        })
+                elif isinstance(data, dict):
+                    soon = data.get("due_within_3_days") or []
+                    week = data.get("due_within_7_days") or []
+                    if soon:
+                        ext_sections.append({
+                            "extension": ext["name"],
+                            "label": "Due within 3 days",
+                            "items": soon,
+                        })
+                    if week:
+                        ext_sections.append({
+                            "extension": ext["name"],
+                            "label": "Due within 7 days",
+                            "items": week,
+                        })
+
+                sections_by_extension[index] = ext_sections
+            except Exception as exc:
+                print(f"[reminders] skipping {ext['name']}: {exc}", file=sys.stderr)
+
+    async with anyio.create_task_group() as tg:
+        for idx, ext in enumerate(extensions):
+            tg.start_soon(gather_for_extension, idx, ext)
+
     sections: list[dict] = []
-
-    for ext in extensions:
-        try:
-            caps = await ext_service.fetch_capabilities(ext["url"])
-            cap_names = {c.get("name") for c in caps}
-            if "get_reminders" not in cap_names:
-                continue
-
-            result = await ext_service.proxy_execute(ext["url"], "get_reminders", {})
-            if not result.get("success"):
-                continue
-
-            data = result.get("data")
-            if not data:
-                continue
-
-            if isinstance(data, list):
-                if data:
-                    sections.append({
-                        "extension": ext["name"],
-                        "label": "",
-                        "items": data,
-                    })
-            elif isinstance(data, dict):
-                soon = data.get("due_within_3_days") or []
-                week = data.get("due_within_7_days") or []
-                if soon:
-                    sections.append({
-                        "extension": ext["name"],
-                        "label": "Due within 3 days",
-                        "items": soon,
-                    })
-                if week:
-                    sections.append({
-                        "extension": ext["name"],
-                        "label": "Due within 7 days",
-                        "items": week,
-                    })
-        except Exception as exc:
-            print(f"[reminders] skipping {ext['name']}: {exc}", file=sys.stderr)
-            continue
-
+    for ext_sections in sections_by_extension:
+        sections.extend(ext_sections)
     return sections
 
 

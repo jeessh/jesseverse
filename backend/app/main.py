@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
+from app.extensions import service as ext_service
 from app.extensions.router import router as extensions_router
 from app.mcp.server import mcp_asgi_app
 from app.reminders.router import router as reminders_router
@@ -23,6 +24,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def _startup() -> None:
+    ext_service.get_http_client()
+
+
+@app.on_event("shutdown")
+async def _shutdown() -> None:
+    await ext_service.close_http_client()
 
 
 @app.get("/api/health")

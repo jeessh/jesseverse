@@ -7,6 +7,7 @@
 import json
 import sys
 import httpx
+import time
 from datetime import datetime, timezone
 from app.core.database import get_supabase
 
@@ -179,34 +180,89 @@ def get_all_action_logs(
 
 # ── protocol proxy ─────────────────────────────────────────────────────────────
 
+_http_client: httpx.AsyncClient | None = None
+_capabilities_cache: dict[str, tuple[float, list[dict]]] = {}
+_CAPABILITIES_CACHE_TTL_SECONDS = 60
+
+
+def get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(
+            limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+            follow_redirects=True,
+        )
+    return _http_client
+
+
+async def close_http_client() -> None:
+    global _http_client
+    if _http_client is not None:
+        await _http_client.aclose()
+        _http_client = None
+
+
+def _normalized_extension_url(url: str) -> str:
+    return url.rstrip("/")
+
+
+def invalidate_capabilities_cache(url: str | None = None) -> None:
+    if url is None:
+        _capabilities_cache.clear()
+        return
+    _capabilities_cache.pop(_normalized_extension_url(url), None)
+
 async def fetch_info(url: str) -> dict:
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.get(f"{url}/info")
-        resp.raise_for_status()
-        return resp.json()
+    normalized_url = _normalized_extension_url(url)
+    client = get_http_client()
+    resp = await client.get(f"{normalized_url}/info", timeout=10)
+    resp.raise_for_status()
+    return resp.json()
 
 
-async def fetch_capabilities(url: str) -> list[dict]:
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.get(f"{url}/capabilities")
-        resp.raise_for_status()
-        return resp.json()
+async def fetch_capabilities(
+    url: str,
+    *,
+    use_cache: bool = True,
+    max_age_seconds: int = _CAPABILITIES_CACHE_TTL_SECONDS,
+) -> list[dict]:
+    normalized_url = _normalized_extension_url(url)
+    now = time.monotonic()
+
+    if use_cache:
+        cached = _capabilities_cache.get(normalized_url)
+        if cached is not None:
+            cached_at, cached_data = cached
+            if now - cached_at <= max_age_seconds:
+                return cached_data
+
+    client = get_http_client()
+    resp = await client.get(f"{normalized_url}/capabilities", timeout=10)
+    resp.raise_for_status()
+    capabilities = resp.json()
+    if not isinstance(capabilities, list):
+        raise RuntimeError("Extension did not return a capabilities array")
+
+    _capabilities_cache[normalized_url] = (now, capabilities)
+    return capabilities
 
 
 async def proxy_execute(url: str, action: str, parameters: dict) -> dict:
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            f"{url}/execute",
-            json={"action": action, "parameters": parameters},
+    normalized_url = _normalized_extension_url(url)
+    client = get_http_client()
+    resp = await client.post(
+        f"{normalized_url}/execute",
+        json={"action": action, "parameters": parameters},
+        timeout=30,
+    )
+    if not resp.is_success:
+        # capture the full response body so callers can log the real error
+        try:
+            body = resp.json()
+            detail = body.get("error") or body.get("detail") or json.dumps(body)
+        except Exception:
+            detail = resp.text or f"HTTP {resp.status_code}"
+        raise RuntimeError(
+            f"HTTP {resp.status_code} from extension:\n{detail}"
         )
-        if not resp.is_success:
-            # capture the full response body so callers can log the real error
-            try:
-                body = resp.json()
-                detail = body.get("error") or body.get("detail") or json.dumps(body)
-            except Exception:
-                detail = resp.text or f"HTTP {resp.status_code}"
-            raise RuntimeError(
-                f"HTTP {resp.status_code} from extension:\n{detail}"
-            )
-        return resp.json()
+    return resp.json()

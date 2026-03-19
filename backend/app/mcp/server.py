@@ -22,6 +22,7 @@ _settings = get_settings()
 # ── mcp server setup ────────────────────────────────────────────────────────────
 
 mcp = FastMCP("jesseverse")
+_EXTENSION_POLL_CONCURRENCY = 5
 
 def _format_param(p: dict) -> str:
     # formats a capability parameter as a human-readable line for the ai
@@ -51,31 +52,38 @@ async def list_extensions() -> str:
     if not extensions:
         return "No extensions registered yet. Add one via POST /api/extensions."
 
-    results = []
-    for ext in extensions:
-        try:
-            caps = await ext_service.fetch_capabilities(ext["url"])
-            cap_lines = []
-            for cap in caps:
-                params = cap.get("parameters") or []
-                # action header line
-                cap_lines.append(
-                    f"  • {cap['name']}: {cap.get('description', '')}"
-                )
-                if params:
-                    for p in params:
-                        cap_lines.append(_format_param(p))
-                else:
-                    cap_lines.append("      (no parameters)")
-            caps_text = (
-                "\n".join(cap_lines) if cap_lines else "  (no capabilities returned)"
-            )
-        except Exception as e:
-            caps_text = f"  (could not fetch capabilities: {e})"
-        header = f"[{ext['name']}] {ext.get('title', ext['name'])} — {ext.get('description', '')}"
-        results.append(f"{header}\n{caps_text}")
+    semaphore = anyio.Semaphore(_EXTENSION_POLL_CONCURRENCY)
+    results: list[str | None] = [None] * len(extensions)
 
-    return "\n\n".join(results)
+    async def build_extension_line(index: int, ext: dict) -> None:
+        async with semaphore:
+            try:
+                caps = await ext_service.fetch_capabilities(ext["url"], use_cache=True)
+                cap_lines = []
+                for cap in caps:
+                    params = cap.get("parameters") or []
+                    cap_lines.append(
+                        f"  • {cap['name']}: {cap.get('description', '')}"
+                    )
+                    if params:
+                        for p in params:
+                            cap_lines.append(_format_param(p))
+                    else:
+                        cap_lines.append("      (no parameters)")
+                caps_text = (
+                    "\n".join(cap_lines) if cap_lines else "  (no capabilities returned)"
+                )
+            except Exception as e:
+                caps_text = f"  (could not fetch capabilities: {e})"
+
+            header = f"[{ext['name']}] {ext.get('title', ext['name'])} — {ext.get('description', '')}"
+            results[index] = f"{header}\n{caps_text}"
+
+    async with anyio.create_task_group() as tg:
+        for idx, ext in enumerate(extensions):
+            tg.start_soon(build_extension_line, idx, ext)
+
+    return "\n\n".join(line for line in results if line)
 
 
 @mcp.tool()
@@ -129,7 +137,7 @@ async def use(extension: str, action: str, parameters: dict, prompt: str | None 
 
     # validate the action name against the extension's capability list before proxying
     try:
-        caps = await ext_service.fetch_capabilities(ext["url"])
+        caps = await ext_service.fetch_capabilities(ext["url"], use_cache=True)
         valid_actions = [c["name"] for c in caps]
         if action not in valid_actions:
             ext_service.log_action(
@@ -204,38 +212,51 @@ async def check_reminders() -> str:
         return "No extensions registered."
 
     # Collect reminders per extension, preserving grouped structure when present
-    sections: list[tuple[str, str, list[dict]]] = []  # (ext_name, section_label, items)
+    sections_per_extension: list[list[tuple[str, str, list[dict]]]] = [[] for _ in extensions]
+    semaphore = anyio.Semaphore(_EXTENSION_POLL_CONCURRENCY)
 
-    for ext in extensions:
-        try:
-            caps = await ext_service.fetch_capabilities(ext["url"])
-            cap_names = {c.get("name") for c in caps}
-            if "get_reminders" not in cap_names:
-                continue
-            result = await ext_service.proxy_execute(ext["url"], "get_reminders", {})
-            if not result.get("success"):
-                continue
-            data = result.get("data")
-            if not data:
-                continue
+    async def collect_for_extension(index: int, ext: dict) -> None:
+        async with semaphore:
+            try:
+                caps = await ext_service.fetch_capabilities(ext["url"], use_cache=True)
+                cap_names = {c.get("name") for c in caps}
+                if "get_reminders" not in cap_names:
+                    return
 
-            if isinstance(data, list):
-                # flat array (legacy shape)
-                for item in data:
-                    item["_extension"] = ext["name"]
-                sections.append((ext["name"], "", data))
-            elif isinstance(data, dict):
-                # grouped shape: { due_within_3_days: [...], due_within_7_days: [...] }
-                soon = data.get("due_within_3_days") or []
-                week = data.get("due_within_7_days") or []
-                for item in soon + week:
-                    item["_extension"] = ext["name"]
-                if soon:
-                    sections.append((ext["name"], "Due within 3 days", soon))
-                if week:
-                    sections.append((ext["name"], "Due within 7 days", week))
-        except Exception:
-            continue
+                result = await ext_service.proxy_execute(ext["url"], "get_reminders", {})
+                if not result.get("success"):
+                    return
+
+                data = result.get("data")
+                if not data:
+                    return
+
+                extension_sections: list[tuple[str, str, list[dict]]] = []
+                if isinstance(data, list):
+                    for item in data:
+                        item["_extension"] = ext["name"]
+                    extension_sections.append((ext["name"], "", data))
+                elif isinstance(data, dict):
+                    soon = data.get("due_within_3_days") or []
+                    week = data.get("due_within_7_days") or []
+                    for item in soon + week:
+                        item["_extension"] = ext["name"]
+                    if soon:
+                        extension_sections.append((ext["name"], "Due within 3 days", soon))
+                    if week:
+                        extension_sections.append((ext["name"], "Due within 7 days", week))
+
+                sections_per_extension[index] = extension_sections
+            except Exception:
+                return
+
+    async with anyio.create_task_group() as tg:
+        for idx, ext in enumerate(extensions):
+            tg.start_soon(collect_for_extension, idx, ext)
+
+    sections: list[tuple[str, str, list[dict]]] = []
+    for ext_sections in sections_per_extension:
+        sections.extend(ext_sections)
 
     if not sections:
         return "No upcoming deadlines. You're all caught up!"
