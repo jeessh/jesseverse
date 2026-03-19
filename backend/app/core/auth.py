@@ -14,6 +14,7 @@ async def require_api_key(x_api_key: str | None = Header(default=None, alias="X-
 async def require_cron_secret(
     authorization: str | None = Header(default=None, alias="Authorization"),
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    x_vercel_cron: str | None = Header(default=None, alias="x-vercel-cron"),
 ):
     """Accepts Vercel cron requests (Authorization: Bearer <CRON_SECRET>)
     or local test calls (X-API-Key header as fallback)."""
@@ -23,6 +24,9 @@ async def require_cron_secret(
         token = authorization[7:]
         if token == settings.cron_secret:
             return
+    # vercel scheduled invocation marker
+    if x_vercel_cron == "1":
+        return
     # fallback: api key for local dev / manual triggers
     if x_api_key and x_api_key == settings.api_key:
         return

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.core.auth import require_api_key, require_cron_secret
@@ -10,17 +10,31 @@ router = APIRouter()
 # ── Digest endpoints ───────────────────────────────────────────────────────────
 
 @router.post("/digest")
-async def run_digest(_: None = Depends(require_cron_secret)):
+async def run_digest(
+    force: bool = Query(default=False, description="Force a digest immediately, ignoring schedules"),
+    _: None = Depends(require_cron_secret),
+):
     """
-    Triggered by Vercel cron at 09:00 UTC daily.
-    Polls all extensions, generates the morning briefing, stores it.
+    Triggered by Vercel cron every hour (UTC).
+    Evaluates all enabled triggers and executes those due at this minute.
+    If force=true, bypasses schedules and runs one digest immediately.
     """
-    row = await rem_service.generate_and_store_digest()
+    if force:
+        row = await rem_service.generate_and_store_digest()
+        return {
+            "ok": True,
+            "forced": True,
+            "generated_at": row.get("generated_at"),
+            "total_count": row.get("total_count"),
+            "id": row.get("id"),
+        }
+
+    executed = await rem_service.run_due_triggers()
     return {
         "ok": True,
-        "generated_at": row.get("generated_at"),
-        "total_count": row.get("total_count"),
-        "id": row.get("id"),
+        "forced": False,
+        "ran": len(executed),
+        "executed": executed,
     }
 
 

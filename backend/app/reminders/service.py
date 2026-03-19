@@ -10,6 +10,9 @@
 
 import sys
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from croniter import croniter
 
 from app.core.database import get_supabase
 from app.extensions import service as ext_service
@@ -114,7 +117,7 @@ def _format_sections(sections: list[dict]) -> str:
 
 # ── Digest storage ─────────────────────────────────────────────────────────────
 
-async def generate_and_store_digest() -> dict:
+async def generate_and_store_digest(trigger_name: str = "morning_briefing") -> dict:
     """
     Poll all extensions, format the digest, persist it, bump trigger.last_run_at.
     Returns the newly stored daily_digests row.
@@ -132,12 +135,12 @@ async def generate_and_store_digest() -> dict:
 
     row = (result.data or [{}])[0]
 
-    # bump last_run_at on the morning_briefing trigger (best-effort)
+    # bump last_run_at on the trigger that generated this digest (best-effort)
     try:
         db.table("triggers").update({
             "last_run_at": datetime.now(timezone.utc).isoformat(),
             "updated_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("name", "morning_briefing").execute()
+        }).eq("name", trigger_name).execute()
     except Exception:
         pass
 
@@ -203,3 +206,81 @@ def set_trigger_enabled(name: str, enabled: bool) -> dict | None:
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }).eq("name", name).execute()
     return get_trigger(name)
+
+
+def _trigger_timezone(trigger: dict) -> ZoneInfo:
+    tz_name = ((trigger.get("config") or {}).get("timezone") or "UTC").strip() or "UTC"
+    try:
+        return ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        return ZoneInfo("UTC")
+
+
+def _already_ran_this_slot(trigger: dict, now_local: datetime) -> bool:
+    last_run_at = trigger.get("last_run_at")
+    if not last_run_at:
+        return False
+    try:
+        last_run = datetime.fromisoformat(str(last_run_at).replace("Z", "+00:00"))
+    except Exception:
+        return False
+    last_local = last_run.astimezone(now_local.tzinfo)
+    return (
+        last_local.year == now_local.year
+        and last_local.month == now_local.month
+        and last_local.day == now_local.day
+        and last_local.hour == now_local.hour
+        and last_local.minute == now_local.minute
+    )
+
+
+def _is_due_now(trigger: dict, now_utc: datetime) -> bool:
+    schedule = (trigger.get("schedule") or "").strip()
+    if not schedule:
+        return False
+
+    now_local = now_utc.astimezone(_trigger_timezone(trigger)).replace(second=0, microsecond=0)
+
+    try:
+        if not croniter.match(schedule, now_local):
+            return False
+    except Exception:
+        return False
+
+    return not _already_ran_this_slot(trigger, now_local)
+
+
+async def run_due_triggers(now_utc: datetime | None = None) -> list[dict]:
+    """
+    Execute all enabled triggers that are due at the current minute.
+    Trigger schedules are interpreted in trigger.config.timezone (default UTC).
+    """
+    current_utc = now_utc or datetime.now(timezone.utc)
+    executed: list[dict] = []
+
+    for trigger in list_triggers():
+        if not trigger.get("enabled", True):
+            continue
+        if not _is_due_now(trigger, current_utc):
+            continue
+
+        action = (trigger.get("action") or "morning_briefing").strip()
+        if action != "morning_briefing":
+            executed.append({
+                "name": trigger.get("name"),
+                "action": action,
+                "status": "skipped",
+                "reason": f"unsupported action: {action}",
+            })
+            continue
+
+        row = await generate_and_store_digest(trigger_name=trigger.get("name") or "morning_briefing")
+        executed.append({
+            "name": trigger.get("name"),
+            "action": action,
+            "status": "ok",
+            "digest_id": row.get("id"),
+            "total_count": row.get("total_count", 0),
+        })
+
+    return executed

@@ -303,16 +303,28 @@ def list_triggers() -> str:
 
 
 @mcp.tool()
-def create_trigger(name: str, schedule: str, action: str = "morning_briefing") -> str:
+def create_trigger(
+    name: str,
+    schedule: str,
+    action: str = "morning_briefing",
+    timezone: str = "UTC",
+) -> str:
     """Create (or update) a named reminder trigger.
 
     Args:
         name:     Unique identifier for the trigger, e.g. "morning_briefing".
-        schedule: Cron expression, e.g. "0 9 * * *" for 09:00 UTC daily.
+        schedule: Cron expression, e.g. "0 9 * * *" for 9:00 daily in the chosen timezone.
         action:   Action the cron endpoint should perform. Default: morning_briefing.
+        timezone: IANA timezone name (e.g. "America/Toronto"). Default: UTC.
     """
-    t = rem_service.create_trigger(name=name, schedule=schedule, action=action)
-    return f"Trigger '{t['name']}' saved with schedule '{t['schedule']}'."
+    t = rem_service.create_trigger(
+        name=name,
+        schedule=schedule,
+        action=action,
+        config={"timezone": timezone},
+    )
+    tz = (t.get("config") or {}).get("timezone", "UTC")
+    return f"Trigger '{t['name']}' saved with schedule '{t['schedule']}' in timezone '{tz}'."
 
 
 @mcp.tool()
@@ -373,7 +385,7 @@ async def _mcp_handler(scope: Scope, receive: Receive, send: Send) -> None:
     if scope.get("method") == "GET":
         body = json.dumps({
             "name": "jesseverse",
-            "description": "Jesseverse MCP server — use POST with a Bearer token to call tools.",
+            "description": "The MCP server for my hub! Use POST with a Bearer token to call tools.",
             "protocolVersion": "2024-11-05",
         }).encode()
         await send({

@@ -4,3 +4,4 @@ pydantic-settings
 supabase
 httpx
 mcp>=1.0.0
+croniter
