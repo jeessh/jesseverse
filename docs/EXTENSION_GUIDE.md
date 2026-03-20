@@ -147,9 +147,19 @@ Executes one of your actions.
 
 **Rules:**
 - Always return `200`. Use `success: false` + `error` for expected failures. Reserve `4xx/5xx` for unexpected server errors only.
+- Parse failures (`invalid JSON body`) are expected client/input errors in this ecosystem; return `200` with `{ "success": false, "error": "Invalid JSON body" }`.
 - `data` can be anything serialisable — an object, an array, a string.
 - If `action` is not recognised, return `{ "success": false, "error": "Unknown action: <name>" }`.
 - No authentication required (Jesseverse is a private personal hub — the assumption is only you are calling it).
+
+### Protocol consistency checklist (enforce across every extension)
+
+- Keep the envelope identical on every `/execute` response: `{ success, data?, error? }`.
+- For expected action-level failures (missing parameter, not found, unknown action, invalid JSON), return HTTP `200` + `success: false`.
+- Reserve non-200 responses for true infrastructure failures only (runtime crash, upstream outage, unhandled exception).
+- Keep action names stable between `/capabilities[].name` and `/execute` dispatch.
+- Ensure `OPTIONS /execute` and `OPTIONS /capabilities` both return `204` with full CORS headers.
+- Include the same CORS headers on normal `GET/POST` responses so browser + hub behavior stays identical across apps.
 
 ---
 

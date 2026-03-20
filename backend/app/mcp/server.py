@@ -211,52 +211,15 @@ async def check_reminders() -> str:
     if not extensions:
         return "No extensions registered."
 
-    # Collect reminders per extension, preserving grouped structure when present
-    sections_per_extension: list[list[tuple[str, str, list[dict]]]] = [[] for _ in extensions]
-    semaphore = anyio.Semaphore(_EXTENSION_POLL_CONCURRENCY)
-
-    async def collect_for_extension(index: int, ext: dict) -> None:
-        async with semaphore:
-            try:
-                caps = await ext_service.fetch_capabilities(ext["url"], use_cache=True)
-                cap_names = {c.get("name") for c in caps}
-                if "get_reminders" not in cap_names:
-                    return
-
-                result = await ext_service.proxy_execute(ext["url"], "get_reminders", {})
-                if not result.get("success"):
-                    return
-
-                data = result.get("data")
-                if not data:
-                    return
-
-                extension_sections: list[tuple[str, str, list[dict]]] = []
-                if isinstance(data, list):
-                    for item in data:
-                        item["_extension"] = ext["name"]
-                    extension_sections.append((ext["name"], "", data))
-                elif isinstance(data, dict):
-                    soon = data.get("due_within_3_days") or []
-                    week = data.get("due_within_7_days") or []
-                    for item in soon + week:
-                        item["_extension"] = ext["name"]
-                    if soon:
-                        extension_sections.append((ext["name"], "Due within 3 days", soon))
-                    if week:
-                        extension_sections.append((ext["name"], "Due within 7 days", week))
-
-                sections_per_extension[index] = extension_sections
-            except Exception:
-                return
-
-    async with anyio.create_task_group() as tg:
-        for idx, ext in enumerate(extensions):
-            tg.start_soon(collect_for_extension, idx, ext)
-
+    raw_sections = await rem_service.gather_all_reminders(use_cache=True)
     sections: list[tuple[str, str, list[dict]]] = []
-    for ext_sections in sections_per_extension:
-        sections.extend(ext_sections)
+    for section in raw_sections:
+        ext_name = section.get("extension", "?")
+        label = section.get("label", "")
+        items = section.get("items") or []
+        for item in items:
+            item["_extension"] = ext_name
+        sections.append((ext_name, label, items))
 
     if not sections:
         return "No upcoming deadlines. You're all caught up!"

@@ -280,6 +280,9 @@ export interface ExtensionExecuteResponse {
  *   - If a required parameter is missing, return:
  *       { "success": false, "error": "Missing required parameter: <name>" }
  *
+ *   - If request JSON is invalid/unparseable, return:
+ *       { "success": false, "error": "Invalid JSON body" }
+ *
  *   - On success, put the result in data:
  *       { "success": true, "data": { ... } }
  *
@@ -317,7 +320,11 @@ export interface ExtensionExecuteResponse {
  * □  GET  /info           returns ExtensionInfo (title, description, version required)
  * □  GET  /capabilities   returns ExtensionCapability[]
  * □  POST /execute        accepts ExtensionExecuteRequest, returns ExtensionExecuteResponse
+ * □  /execute keeps one envelope everywhere: { success, data?, error? }
+ * □  Expected action-level failures (invalid JSON, bad input, not found, unknown action) return HTTP 200 + success:false
+ * □  Non-200 responses are reserved for unexpected infrastructure/runtime failures
  * □  OPTIONS on all three endpoints returns 204 + full CORS headers
+ * □  CORS headers are included on normal GET/POST responses as well
  * □  next.config.ts (or equivalent) adds CORS headers to GET and POST routes
  * □  Deployed and publicly reachable
  * □  Registered with the hub (hub calls /info automatically):

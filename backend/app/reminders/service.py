@@ -9,6 +9,8 @@
 #   - Trigger CRUD: create / list / update / delete rows in triggers.
 
 import sys
+import time
+import asyncio
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -19,76 +21,102 @@ from app.core.database import get_supabase
 from app.extensions import service as ext_service
 
 _EXTENSION_POLL_CONCURRENCY = 5
+_REMINDER_CACHE_TTL_SECONDS = 23 * 60 * 60
+_reminder_sections_cache: tuple[float, list[dict]] | None = None
+_reminder_gather_lock = asyncio.Lock()
 
 
 # ── Reminder gathering ─────────────────────────────────────────────────────────
 
-async def gather_all_reminders() -> list[dict]:
+def invalidate_reminder_cache() -> None:
+    global _reminder_sections_cache
+    _reminder_sections_cache = None
+
+
+async def gather_all_reminders(*, use_cache: bool = True) -> list[dict]:
     """
     Collect reminders from every online extension that has a get_reminders action.
     Returns a list of section dicts:
         { "extension": str, "label": str, "items": list[dict] }
     """
-    extensions = [
-        e for e in ext_service.list_extensions()
-        if (e.get("visibility") or "online") == "online"
-    ]
+    global _reminder_sections_cache
+    now = time.monotonic()
 
-    sections_by_extension: list[list[dict]] = [[] for _ in extensions]
-    semaphore = anyio.Semaphore(_EXTENSION_POLL_CONCURRENCY)
+    if use_cache and _reminder_sections_cache is not None:
+        cached_at, cached_sections = _reminder_sections_cache
+        if now - cached_at <= _REMINDER_CACHE_TTL_SECONDS:
+            return cached_sections
 
-    async def gather_for_extension(index: int, ext: dict) -> None:
-        async with semaphore:
-            try:
-                caps = await ext_service.fetch_capabilities(ext["url"], use_cache=True)
-                cap_names = {c.get("name") for c in caps}
-                if "get_reminders" not in cap_names:
-                    return
+    async with _reminder_gather_lock:
+        # Re-check inside lock to collapse concurrent callers into one upstream poll.
+        now = time.monotonic()
+        if use_cache and _reminder_sections_cache is not None:
+            cached_at, cached_sections = _reminder_sections_cache
+            if now - cached_at <= _REMINDER_CACHE_TTL_SECONDS:
+                return cached_sections
 
-                result = await ext_service.proxy_execute(ext["url"], "get_reminders", {})
-                if not result.get("success"):
-                    return
+        extensions = [
+            e for e in ext_service.list_extensions()
+            if (e.get("visibility") or "online") == "online"
+        ]
 
-                data = result.get("data")
-                if not data:
-                    return
+        sections_by_extension: list[list[dict]] = [[] for _ in extensions]
+        semaphore = anyio.Semaphore(_EXTENSION_POLL_CONCURRENCY)
 
-                ext_sections: list[dict] = []
-                if isinstance(data, list):
-                    if data:
-                        ext_sections.append({
-                            "extension": ext["name"],
-                            "label": "",
-                            "items": data,
-                        })
-                elif isinstance(data, dict):
-                    soon = data.get("due_within_3_days") or []
-                    week = data.get("due_within_7_days") or []
-                    if soon:
-                        ext_sections.append({
-                            "extension": ext["name"],
-                            "label": "Due within 3 days",
-                            "items": soon,
-                        })
-                    if week:
-                        ext_sections.append({
-                            "extension": ext["name"],
-                            "label": "Due within 7 days",
-                            "items": week,
-                        })
+        async def gather_for_extension(index: int, ext: dict) -> None:
+            async with semaphore:
+                try:
+                    caps = await ext_service.fetch_capabilities(ext["url"], use_cache=True)
+                    cap_names = {c.get("name") for c in caps}
+                    if "get_reminders" not in cap_names:
+                        return
 
-                sections_by_extension[index] = ext_sections
-            except Exception as exc:
-                print(f"[reminders] skipping {ext['name']}: {exc}", file=sys.stderr)
+                    result = await ext_service.proxy_execute(ext["url"], "get_reminders", {})
+                    if not result.get("success"):
+                        return
 
-    async with anyio.create_task_group() as tg:
-        for idx, ext in enumerate(extensions):
-            tg.start_soon(gather_for_extension, idx, ext)
+                    data = result.get("data")
+                    if not data:
+                        return
 
-    sections: list[dict] = []
-    for ext_sections in sections_by_extension:
-        sections.extend(ext_sections)
-    return sections
+                    ext_sections: list[dict] = []
+                    if isinstance(data, list):
+                        if data:
+                            ext_sections.append({
+                                "extension": ext["name"],
+                                "label": "",
+                                "items": data,
+                            })
+                    elif isinstance(data, dict):
+                        soon = data.get("due_within_3_days") or []
+                        week = data.get("due_within_7_days") or []
+                        if soon:
+                            ext_sections.append({
+                                "extension": ext["name"],
+                                "label": "Due within 3 days",
+                                "items": soon,
+                            })
+                        if week:
+                            ext_sections.append({
+                                "extension": ext["name"],
+                                "label": "Due within 7 days",
+                                "items": week,
+                            })
+
+                    sections_by_extension[index] = ext_sections
+                except Exception as exc:
+                    print(f"[reminders] skipping {ext['name']}: {exc}", file=sys.stderr)
+
+        async with anyio.create_task_group() as tg:
+            for idx, ext in enumerate(extensions):
+                tg.start_soon(gather_for_extension, idx, ext)
+
+        sections: list[dict] = []
+        for ext_sections in sections_by_extension:
+            sections.extend(ext_sections)
+
+        _reminder_sections_cache = (time.monotonic(), sections)
+        return sections
 
 
 def _format_sections(sections: list[dict]) -> str:
@@ -136,7 +164,7 @@ async def generate_and_store_digest(trigger_name: str = "morning_briefing") -> d
     Poll all extensions, format the digest, persist it, bump trigger.last_run_at.
     Returns the newly stored daily_digests row.
     """
-    sections = await gather_all_reminders()
+    sections = await gather_all_reminders(use_cache=False)
     total = sum(len(s["items"]) for s in sections)
     text = _format_sections(sections)
 
@@ -157,6 +185,8 @@ async def generate_and_store_digest(trigger_name: str = "morning_briefing") -> d
         }).eq("name", trigger_name).execute()
     except Exception:
         pass
+
+    invalidate_reminder_cache()
 
     return row
 

@@ -8,6 +8,7 @@ import json
 import sys
 import httpx
 import time
+import asyncio
 from collections import Counter
 from datetime import datetime, timezone, timedelta
 from app.core.database import get_supabase
@@ -280,7 +281,8 @@ def get_action_log_analytics(
 
 _http_client: httpx.AsyncClient | None = None
 _capabilities_cache: dict[str, tuple[float, list[dict]]] = {}
-_CAPABILITIES_CACHE_TTL_SECONDS = 60
+_capabilities_fetch_locks: dict[str, asyncio.Lock] = {}
+_CAPABILITIES_CACHE_TTL_SECONDS = 23 * 60 * 60
 
 
 def get_http_client() -> httpx.AsyncClient:
@@ -310,6 +312,14 @@ def invalidate_capabilities_cache(url: str | None = None) -> None:
         return
     _capabilities_cache.pop(_normalized_extension_url(url), None)
 
+
+def _capabilities_lock_for(url: str) -> asyncio.Lock:
+    lock = _capabilities_fetch_locks.get(url)
+    if lock is None:
+        lock = asyncio.Lock()
+        _capabilities_fetch_locks[url] = lock
+    return lock
+
 async def fetch_info(url: str) -> dict:
     normalized_url = _normalized_extension_url(url)
     client = get_http_client()
@@ -334,15 +344,25 @@ async def fetch_capabilities(
             if now - cached_at <= max_age_seconds:
                 return cached_data
 
-    client = get_http_client()
-    resp = await client.get(f"{normalized_url}/capabilities", timeout=10)
-    resp.raise_for_status()
-    capabilities = resp.json()
-    if not isinstance(capabilities, list):
-        raise RuntimeError("Extension did not return a capabilities array")
+    lock = _capabilities_lock_for(normalized_url)
+    async with lock:
+        # Re-check after waiting on the lock to avoid duplicate upstream calls.
+        if use_cache:
+            cached = _capabilities_cache.get(normalized_url)
+            if cached is not None:
+                cached_at, cached_data = cached
+                if time.monotonic() - cached_at <= max_age_seconds:
+                    return cached_data
 
-    _capabilities_cache[normalized_url] = (now, capabilities)
-    return capabilities
+        client = get_http_client()
+        resp = await client.get(f"{normalized_url}/capabilities", timeout=10)
+        resp.raise_for_status()
+        capabilities = resp.json()
+        if not isinstance(capabilities, list):
+            raise RuntimeError("Extension did not return a capabilities array")
+
+        _capabilities_cache[normalized_url] = (time.monotonic(), capabilities)
+        return capabilities
 
 
 async def proxy_execute(url: str, action: str, parameters: dict) -> dict:
